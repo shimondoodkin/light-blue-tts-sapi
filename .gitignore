@@ -13,20 +13,6 @@ ovep-win/
 *.timing
 *.wav
 
-# Models (downloaded separately)
-models/onnx/*.onnx
-models/onnx/*.npz
-models/*.onnx
-models/tokenizer.json
-models/tts.json
-models/voices/
-models/style.json
-models/style_female.json
-
-# Keep the models/ directory structure via .gitkeep
-!models/onnx/.gitkeep
-!models/.gitkeep
-
 # Build artifacts
 onnxruntime.dll
 models_orig/
