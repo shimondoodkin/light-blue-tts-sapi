@@ -50,10 +50,6 @@ Section "Install"
     ; Create uninstaller
     WriteUninstaller "$INSTDIR\Uninstall.exe"
 
-    ; Start menu shortcuts
-    CreateDirectory "$SMPROGRAMS\LightBlue TTS SAPI"
-    CreateShortcut "$SMPROGRAMS\LightBlue TTS SAPI\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
-
     ; Add/Remove Programs entry
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTSSAPI" \
         "DisplayName" "LightBlue Hebrew TTS SAPI"
@@ -88,9 +84,6 @@ Section "Uninstall"
     Delete "$INSTDIR\lightblue-tts.exe"
     Delete "$INSTDIR\Uninstall.exe"
     RMDir "$INSTDIR"
-
-    ; Remove Start Menu shortcuts
-    RMDir /r "$SMPROGRAMS\LightBlue TTS SAPI"
 
     ; Remove Add/Remove Programs entry
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTSSAPI"
