@@ -32,9 +32,9 @@ For faster synthesis on NVIDIA GPUs:
    ```
    Or download manually from [CUDA Toolkit Archive](https://developer.nvidia.com/cuda-toolkit-archive) and [cuDNN Archive](https://developer.nvidia.com/cudnn-archive).
 
-2. Download and run **LightBlue-TTS-Setup.exe** (app installer)
-3. Download and run **LightBlue-TTS-Models.exe** (model files)
-4. Download and run **LightBlue-TTS-ORT-GPU.exe** (replaces CPU runtime with GPU version)
+2. Download and run **LightBlue-TTS-Setup.exe** (install the app first)
+3. Download and run **LightBlue-TTS-Models.exe** (installs into the app folder)
+4. Download and run **LightBlue-TTS-ORT-GPU.exe** (overwrites CPU onnxruntime.dll with GPU version — must be installed after the app setup)
 5. Select one of the "GPU" voice variants in Windows speech settings.
 
 ## Building from Source
