@@ -74,14 +74,13 @@ fn cmd_synthesize(args: &[String]) {
 
     let models_dir = find_models_dir();
 
-    let onnx_dir = models_dir.join("onnx");
     let config_json = models_dir.join("tts.json");
     let phonikud_model = models_dir.join("phonikud.onnx");
     let phonikud_tokenizer = models_dir.join("tokenizer.json");
     let style_json = models_dir.join("style.json");
 
     for (name, path) in [
-        ("onnx dir", onnx_dir.as_path()),
+        ("models dir", models_dir.as_path()),
         ("tts.json", config_json.as_path()),
         ("phonikud.onnx", phonikud_model.as_path()),
         ("tokenizer.json", phonikud_tokenizer.as_path()),
@@ -98,7 +97,7 @@ fn cmd_synthesize(args: &[String]) {
         None
     };
 
-    let mut tts_config = TTSConfig::new(&onnx_dir, &config_json);
+    let mut tts_config = TTSConfig::new(&models_dir, &config_json);
     tts_config.default_style_json = style_json_path.as_ref().map(PathBuf::from);
 
     eprintln!("Loading models from: {}", models_dir.display());

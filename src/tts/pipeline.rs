@@ -374,8 +374,8 @@ pub struct HebrewTTS {
 impl HebrewTTS {
     /// Create a new TTS engine from the given configuration.
     pub fn new(config: TTSConfig) -> Result<Self, BoxErr> {
-        // Derive the DLL directory (parent of models/onnx → models → install dir)
-        let dll_dir = config.onnx_dir.parent().and_then(|m| m.parent());
+        // Derive the DLL directory (parent of models → install dir)
+        let dll_dir = config.onnx_dir.parent();
         init_ort_with_dir(dll_dir)?;
 
         // Load model JSON config

@@ -27,7 +27,6 @@ fn main() {
     ];
 
     let models_dir = find_models_dir();
-    let onnx_dir = models_dir.join("onnx");
     let config_json = models_dir.join("tts.json");
     let phonikud_model = models_dir.join("phonikud.onnx");
     let phonikud_tokenizer = models_dir.join("tokenizer.json");
@@ -53,7 +52,7 @@ fn main() {
         i += 1;
     }
 
-    let mut tts_config = TTSConfig::new(&onnx_dir, &config_json);
+    let mut tts_config = TTSConfig::new(&models_dir, &config_json);
     tts_config.default_style_json = style_json_path.as_ref().map(PathBuf::from);
     if let Some(s) = steps { tts_config.steps = s; }
     if let Some(c) = cfg_scale { tts_config.cfg_scale = c; }

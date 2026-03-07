@@ -30,21 +30,20 @@ struct DownloadFile {
 
 const FILES: &[DownloadFile] = &[
     // TTS ONNX models
-    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/onnx/backbone_keys.onnx", rel_path: "models/onnx/backbone_keys.onnx" },
-    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/onnx/text_encoder.onnx", rel_path: "models/onnx/text_encoder.onnx" },
-    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/onnx/reference_encoder.onnx", rel_path: "models/onnx/reference_encoder.onnx" },
-    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/onnx/vocoder.onnx", rel_path: "models/onnx/vocoder.onnx" },
-    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/onnx/length_pred.onnx", rel_path: "models/onnx/length_pred.onnx" },
-    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/onnx/length_pred_style.onnx", rel_path: "models/onnx/length_pred_style.onnx" },
-    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/onnx/stats.npz", rel_path: "models/onnx/stats.npz" },
-    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/onnx/uncond.npz", rel_path: "models/onnx/uncond.npz" },
-    // TTS config & styles
-    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/tts.json", rel_path: "models/tts.json" },
-    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/style.json", rel_path: "models/voices/male1.json" },
-    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/style_female.json", rel_path: "models/voices/female1.json" },
+    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/backbone_keys.onnx", rel_path: "models/backbone_keys.onnx" },
+    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/text_encoder.onnx", rel_path: "models/text_encoder.onnx" },
+    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/reference_encoder.onnx", rel_path: "models/reference_encoder.onnx" },
+    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/vocoder.onnx", rel_path: "models/vocoder.onnx" },
+    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/length_pred.onnx", rel_path: "models/length_pred.onnx" },
+    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/length_pred_style.onnx", rel_path: "models/length_pred_style.onnx" },
+    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/stats.npz", rel_path: "models/stats.npz" },
+    DownloadFile { url: "https://huggingface.co/notmax123/LightBlue/resolve/main/uncond.npz", rel_path: "models/uncond.npz" },
+    // Voice styles
+    DownloadFile { url: "https://raw.githubusercontent.com/maxmelichov/Light-BlueTTS/main/voices/male1.json", rel_path: "models/voices/male1.json" },
+    DownloadFile { url: "https://raw.githubusercontent.com/maxmelichov/Light-BlueTTS/main/voices/female1.json", rel_path: "models/voices/female1.json" },
     // Phonikud
-    DownloadFile { url: "https://huggingface.co/thewh1teagle/phonikud-onnx/resolve/main/phonikud.onnx", rel_path: "models/phonikud.onnx" },
-    DownloadFile { url: "https://huggingface.co/thewh1teagle/phonikud-onnx/resolve/main/tokenizer.json", rel_path: "models/tokenizer.json" },
+    DownloadFile { url: "https://huggingface.co/thewh1teagle/phonikud-onnx/resolve/main/phonikud-1.0.onnx", rel_path: "models/phonikud.onnx" },
+    DownloadFile { url: "https://huggingface.co/dicta-il/dictabert-large-char-menaked/raw/main/tokenizer.json", rel_path: "models/tokenizer.json" },
 ];
 
 fn default_install_dir() -> PathBuf {
@@ -371,7 +370,7 @@ fn main() {
     println!();
 
     // Create directories
-    fs::create_dir_all(install_dir.join("models/onnx")).ok();
+    fs::create_dir_all(install_dir.join("models")).ok();
     fs::create_dir_all(install_dir.join("models/voices")).ok();
     fs::create_dir_all(install_dir.join("dictionaries")).ok();
 

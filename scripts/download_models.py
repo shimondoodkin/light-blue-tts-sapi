@@ -19,14 +19,14 @@ import argparse
 # Files to download: (url, local_path)
 FILES = [
     # TTS ONNX models
-    ("https://huggingface.co/notmax123/LightBlue/resolve/main/backbone_keys.onnx", "models/onnx/backbone_keys.onnx"),
-    ("https://huggingface.co/notmax123/LightBlue/resolve/main/text_encoder.onnx", "models/onnx/text_encoder.onnx"),
-    ("https://huggingface.co/notmax123/LightBlue/resolve/main/reference_encoder.onnx", "models/onnx/reference_encoder.onnx"),
-    ("https://huggingface.co/notmax123/LightBlue/resolve/main/vocoder.onnx", "models/onnx/vocoder.onnx"),
-    ("https://huggingface.co/notmax123/LightBlue/resolve/main/length_pred.onnx", "models/onnx/length_pred.onnx"),
-    ("https://huggingface.co/notmax123/LightBlue/resolve/main/length_pred_style.onnx", "models/onnx/length_pred_style.onnx"),
-    ("https://huggingface.co/notmax123/LightBlue/resolve/main/stats.npz", "models/onnx/stats.npz"),
-    ("https://huggingface.co/notmax123/LightBlue/resolve/main/uncond.npz", "models/onnx/uncond.npz"),
+    ("https://huggingface.co/notmax123/LightBlue/resolve/main/backbone_keys.onnx", "models/backbone_keys.onnx"),
+    ("https://huggingface.co/notmax123/LightBlue/resolve/main/text_encoder.onnx", "models/text_encoder.onnx"),
+    ("https://huggingface.co/notmax123/LightBlue/resolve/main/reference_encoder.onnx", "models/reference_encoder.onnx"),
+    ("https://huggingface.co/notmax123/LightBlue/resolve/main/vocoder.onnx", "models/vocoder.onnx"),
+    ("https://huggingface.co/notmax123/LightBlue/resolve/main/length_pred.onnx", "models/length_pred.onnx"),
+    ("https://huggingface.co/notmax123/LightBlue/resolve/main/length_pred_style.onnx", "models/length_pred_style.onnx"),
+    ("https://huggingface.co/notmax123/LightBlue/resolve/main/stats.npz", "models/stats.npz"),
+    ("https://huggingface.co/notmax123/LightBlue/resolve/main/uncond.npz", "models/uncond.npz"),
     # Voice styles
     ("https://raw.githubusercontent.com/maxmelichov/Light-BlueTTS/main/voices/male1.json", "models/voices/male1.json"),
     ("https://raw.githubusercontent.com/maxmelichov/Light-BlueTTS/main/voices/female1.json", "models/voices/female1.json"),
@@ -102,7 +102,7 @@ def main():
     print(f"Target: {base_dir}")
     print()
 
-    for subdir in ["models/onnx", "models/voices"]:
+    for subdir in ["models", "models/voices"]:
         os.makedirs(os.path.join(base_dir, subdir), exist_ok=True)
 
     success = 0

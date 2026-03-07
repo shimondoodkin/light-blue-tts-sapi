@@ -86,7 +86,6 @@ fn create_lazy_synthesizer() -> Result<Arc<bridge::LazyLightBlueSynthesizer>, Bo
 
     // Model paths — all relative to the DLL's install directory
     let models_dir = dll_dir.join("models");
-    let onnx_dir = models_dir.join("onnx");
     let config_json = models_dir.join("tts.json");
 
     let phonikud_model = models_dir.join("phonikud.onnx");
@@ -100,7 +99,7 @@ fn create_lazy_synthesizer() -> Result<Arc<bridge::LazyLightBlueSynthesizer>, Bo
     };
 
     // Build TTSConfig
-    let mut tts_config = tts::TTSConfig::new(&onnx_dir, &config_json);
+    let mut tts_config = tts::TTSConfig::new(&models_dir, &config_json);
     tts_config.default_style_json = style_json_path.as_ref().map(PathBuf::from);
 
     let synth = bridge::LazyLightBlueSynthesizer::new(

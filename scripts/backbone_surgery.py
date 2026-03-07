@@ -15,8 +15,8 @@ Usage:
     python backbone_surgery.py [input.onnx] [output.onnx]
 
     Defaults:
-        input:  models/onnx/backbone_keys_orig.onnx
-        output: models/onnx/backbone_keys.onnx
+        input:  models/backbone_keys_orig.onnx
+        output: models/backbone_keys.onnx
 
 Requirements:
     pip install onnx numpy
