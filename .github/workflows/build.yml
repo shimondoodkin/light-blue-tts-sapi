@@ -91,7 +91,7 @@ jobs:
                winget install Nvidia.CUDA
                winget install Nvidia.cuDNN
                ```
-               Or download from [NVIDIA CUDA](https://developer.nvidia.com/cuda-downloads) / [NVIDIA cuDNN](https://developer.nvidia.com/cudnn-downloads).
+               Or download from [CUDA Toolkit Archive](https://developer.nvidia.com/cuda-toolkit-archive) / [cuDNN Archive](https://developer.nvidia.com/cudnn-archive).
             2. Download and run **LightBlue-TTS-Setup.exe**
             3. Download and run **LightBlue-TTS-Models.exe**
             4. Download and run **LightBlue-TTS-ORT-GPU.exe** (replaces CPU runtime with GPU version)

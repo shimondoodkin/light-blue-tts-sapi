@@ -30,7 +30,7 @@ For faster synthesis on NVIDIA GPUs:
    winget install Nvidia.CUDA
    winget install Nvidia.cuDNN
    ```
-   Or download manually from [NVIDIA CUDA](https://developer.nvidia.com/cuda-downloads) and [NVIDIA cuDNN](https://developer.nvidia.com/cudnn-downloads).
+   Or download manually from [CUDA Toolkit Archive](https://developer.nvidia.com/cuda-toolkit-archive) and [cuDNN Archive](https://developer.nvidia.com/cudnn-archive).
 
 2. Download and run **LightBlue-TTS-Setup.exe** (app installer)
 3. Download and run **LightBlue-TTS-Models.exe** (model files)
