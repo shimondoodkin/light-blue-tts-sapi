@@ -25,9 +25,19 @@ Unicode true
 
 ; --- Install ---
 Section "Install"
-    ; TTS config
     SetOutPath "$INSTDIR\models"
-    File "..\models\tts.json"
+
+    ; ONNX models
+    File "..\models\backbone_keys.onnx"
+    File "..\models\text_encoder.onnx"
+    File "..\models\reference_encoder.onnx"
+    File "..\models\vocoder.onnx"
+    File "..\models\length_pred.onnx"
+    File "..\models\length_pred_style.onnx"
+    File "..\models\stats.npz"
+    File "..\models\uncond.npz"
+
+    ; Phonikud
     File "..\models\phonikud.onnx"
     File "..\models\tokenizer.json"
 
@@ -35,15 +45,4 @@ Section "Install"
     SetOutPath "$INSTDIR\models\voices"
     File "..\models\voices\male1.json"
     File "..\models\voices\female1.json"
-
-    ; ONNX models
-    SetOutPath "$INSTDIR\models\onnx"
-    File "..\models\onnx\backbone_keys.onnx"
-    File "..\models\onnx\text_encoder.onnx"
-    File "..\models\onnx\reference_encoder.onnx"
-    File "..\models\onnx\vocoder.onnx"
-    File "..\models\onnx\length_pred.onnx"
-    File "..\models\onnx\length_pred_style.onnx"
-    File "..\models\onnx\stats.npz"
-    File "..\models\onnx\uncond.npz"
 SectionEnd

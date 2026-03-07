@@ -17,19 +17,18 @@ jobs:
       - name: Download models from HuggingFace
         shell: bash
         run: |
-          mkdir -p models/onnx models/voices
+          mkdir -p models/voices
 
           HF_TTS="https://huggingface.co/notmax123/LightBlue/resolve/main"
           HF_PHONIKUD="https://huggingface.co/thewh1teagle/phonikud-onnx/resolve/main"
 
-          # TTS ONNX models
+          # TTS ONNX models (flat in models/)
           for f in backbone_keys.onnx text_encoder.onnx reference_encoder.onnx vocoder.onnx length_pred.onnx length_pred_style.onnx stats.npz uncond.npz; do
             echo "Downloading $f..."
-            curl -L -o "models/onnx/$f" "$HF_TTS/onnx/$f"
+            curl -L -o "models/$f" "$HF_TTS/onnx/$f"
           done
 
-          # TTS config
-          curl -L -o models/tts.json "$HF_TTS/tts.json"
+          # Voice styles
           curl -L -o models/voices/male1.json "$HF_TTS/style.json"
           curl -L -o models/voices/female1.json "$HF_TTS/style_female.json"
 
@@ -43,15 +42,15 @@ jobs:
           pip install onnx numpy onnxsim
 
           # Simplify all ONNX models with onnxsim
-          for f in models/onnx/*.onnx models/phonikud.onnx; do
+          for f in models/*.onnx; do
             echo "Simplifying $f..."
             python -m onnxsim "$f" "$f"
           done
 
           # Apply backbone surgery for full GPU execution
-          cp models/onnx/backbone_keys.onnx models/onnx/backbone_keys_orig.onnx
-          python scripts/backbone_surgery.py models/onnx/backbone_keys_orig.onnx models/onnx/backbone_keys.onnx
-          rm models/onnx/backbone_keys_orig.onnx
+          cp models/backbone_keys.onnx models/backbone_keys_orig.onnx
+          python scripts/backbone_surgery.py models/backbone_keys_orig.onnx models/backbone_keys.onnx
+          rm models/backbone_keys_orig.onnx
 
       - name: Install NSIS
         run: choco install nsis -y

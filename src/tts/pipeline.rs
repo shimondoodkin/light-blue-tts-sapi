@@ -8,7 +8,7 @@ use ort::session::builder::GraphOptimizationLevel;
 use ort::session::Session;
 use ort::value::Tensor;
 
-use super::config::{load_model_config, TTSConfig};
+use super::config::{TTSConfig, LATENT_DIM, CHUNK_COMPRESS_FACTOR, NORMALIZER_SCALE, SAMPLE_RATE, HOP_LENGTH};
 use super::npz::load_npz;
 use super::style::StyleJson;
 
@@ -378,13 +378,12 @@ impl HebrewTTS {
         let dll_dir = config.onnx_dir.parent();
         init_ort_with_dir(dll_dir)?;
 
-        // Load model JSON config
-        let model_cfg = load_model_config(&config.config_json_path)?;
-        let latent_dim = model_cfg.ttl.latent_dim;
-        let chunk_compress_factor = model_cfg.ttl.chunk_compress_factor;
-        let normalizer_scale = model_cfg.ttl.normalizer.scale;
-        let sample_rate = model_cfg.ae.sample_rate;
-        let hop_length = model_cfg.ae.encoder.spec_processor.hop_length;
+        // Model constants
+        let latent_dim = LATENT_DIM;
+        let chunk_compress_factor = CHUNK_COMPRESS_FACTOR;
+        let normalizer_scale = NORMALIZER_SCALE;
+        let sample_rate = SAMPLE_RATE;
+        let hop_length = HOP_LENGTH;
 
         let threads = config.threads;
         let onnx_dir = &config.onnx_dir;

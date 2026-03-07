@@ -13,6 +13,10 @@ ovep-win/
 *.timing
 *.wav
 
+# Models (downloaded separately)
+models/*
+!models/.gitkeep
+
 # Build artifacts
 onnxruntime.dll
 models_orig/

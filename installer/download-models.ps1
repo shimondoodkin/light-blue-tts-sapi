@@ -39,8 +39,7 @@ $Files = @(
     @{ Url = "$HF_TTS/onnx/length_pred_style.onnx";   Path = "$OnnxDir\length_pred_style.onnx" }
     @{ Url = "$HF_TTS/onnx/stats.npz";                Path = "$OnnxDir\stats.npz" }
     @{ Url = "$HF_TTS/onnx/uncond.npz";               Path = "$OnnxDir\uncond.npz" }
-    # TTS config & styles
-    @{ Url = "$HF_TTS/tts.json";                      Path = "$ModelsDir\tts.json" }
+    # Voice styles
     @{ Url = "$HF_TTS/style.json";                    Path = "$ModelsDir\style.json" }
     @{ Url = "$HF_TTS/style_female.json";             Path = "$ModelsDir\style_female.json" }
     # Phonikud
