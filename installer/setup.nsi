@@ -37,7 +37,10 @@ Section "Install"
     File "..\target\release\lightblue_sapi.dll"
     File "..\target\release\lightblue-tts.exe"
     ; ONNX Runtime (WinML/DirectML — CPU fallback)
+    ; Skip if already present (don't overwrite a GPU version)
+    SetOverwrite off
     File "..\target\release\onnxruntime.dll"
+    SetOverwrite on
 
     ; Create directory structure for models
     CreateDirectory "$INSTDIR\models"
