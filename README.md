@@ -88,12 +88,6 @@ Build outputs in `target/release/`:
 - `lightblue-tts.exe` — CLI tool
 - `onnxruntime.dll` — ONNX Runtime (auto-downloaded by build.rs)
 
-### Download Models
-
-```bash
-python scripts/download_models.py
-```
-
 ### Register the SAPI Voice
 
 ```bash
@@ -112,7 +106,7 @@ powershell -ExecutionPolicy Bypass -File dev-deploy-sapi.ps1
 powershell -ExecutionPolicy Bypass -File dev-deploy-models.ps1
 
 # Uninstall (unregister COM + remove install directory)
-powershell -ExecutionPolicy Bypass -File installer\uninstall.ps1
+powershell -ExecutionPolicy Bypass -File dev-uninstall.ps1
 ```
 
 ### Build NSIS Installers
