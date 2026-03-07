@@ -39,10 +39,6 @@ Section "Install"
     ; ONNX Runtime (WinML/DirectML — CPU fallback)
     File "..\target\release\onnxruntime.dll"
 
-    ; Management scripts
-    File "install.ps1"
-    File "uninstall.ps1"
-
     ; Create directory structure for models
     CreateDirectory "$INSTDIR\models"
     CreateDirectory "$INSTDIR\models\voices"
@@ -90,8 +86,6 @@ Section "Uninstall"
     Delete "$INSTDIR\onnxruntime_providers_cuda.dll"
     Delete "$INSTDIR\onnxruntime_providers_tensorrt.dll"
     Delete "$INSTDIR\lightblue-tts.exe"
-    Delete "$INSTDIR\install.ps1"
-    Delete "$INSTDIR\uninstall.ps1"
     Delete "$INSTDIR\Uninstall.exe"
     RMDir "$INSTDIR"
 
