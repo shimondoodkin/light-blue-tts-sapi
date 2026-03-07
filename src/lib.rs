@@ -5,7 +5,6 @@
 //! `DllUnregisterServer`) so that `regsvr32` can register it as a SAPI voice.
 
 pub mod bridge;
-pub mod expander;
 pub mod phonemize;
 pub mod sapi;
 pub mod tts;

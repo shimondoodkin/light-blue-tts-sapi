@@ -7,7 +7,7 @@
 
 use std::sync::{Mutex, OnceLock};
 
-use crate::expander;
+use phonikud_rs::expander;
 use crate::phonemize;
 use crate::sapi::TtsSynthesizer;
 use crate::tts::{HebrewTTS, TTSConfig};
