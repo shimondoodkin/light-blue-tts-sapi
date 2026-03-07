@@ -28,8 +28,8 @@ FILES = [
     ("https://huggingface.co/notmax123/LightBlue/resolve/main/stats.npz", "models/onnx/stats.npz"),
     ("https://huggingface.co/notmax123/LightBlue/resolve/main/uncond.npz", "models/onnx/uncond.npz"),
     # Voice styles
-    ("https://huggingface.co/notmax123/LightBlue/resolve/main/voices/male1.json", "models/voices/male1.json"),
-    ("https://huggingface.co/notmax123/LightBlue/resolve/main/voices/female1.json", "models/voices/female1.json"),
+    ("https://raw.githubusercontent.com/maxmelichov/Light-BlueTTS/main/voices/male1.json", "models/voices/male1.json"),
+    ("https://raw.githubusercontent.com/maxmelichov/Light-BlueTTS/main/voices/female1.json", "models/voices/female1.json"),
     # Phonikud
     ("https://huggingface.co/thewh1teagle/phonikud-onnx/resolve/main/phonikud-1.0.onnx", "models/phonikud.onnx"),
     ("https://huggingface.co/dicta-il/dictabert-large-char-menaked/raw/main/tokenizer.json", "models/tokenizer.json"),
