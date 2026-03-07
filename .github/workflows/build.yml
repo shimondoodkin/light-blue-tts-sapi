@@ -60,5 +60,51 @@ jobs:
         with:
           files: target/installer/LightBlue-TTS-Setup.exe
           generate_release_notes: true
+          body: |
+            ## LightBlue Hebrew TTS — Windows SAPI 5 Voice Engine
+
+            ### Downloads
+
+            | File | Description |
+            |------|-------------|
+            | **LightBlue-TTS-Setup.exe** | App installer (DLL, CLI tools, DirectML runtime) |
+            | **LightBlue-TTS-Models.exe** | ONNX models (required, install separately) |
+            | **LightBlue-TTS-ORT-GPU.exe** | ONNX Runtime GPU — for CUDA/TensorRT (optional) |
+
+            > **Models and ORT GPU installers** are uploaded separately via manual workflows.
+            > If they are not yet attached to this release, check back shortly or see [all releases](https://github.com/shimondoodkin/light-blue-tts-sapi/releases).
+
+            ---
+
+            ### CPU-Only Install (simplest)
+
+            1. Download and run **LightBlue-TTS-Setup.exe**
+            2. Download and run **LightBlue-TTS-Models.exe**
+            3. Done! Select a "LightBlueTTS" voice in Windows speech settings.
+
+            ### GPU Install (CUDA / TensorRT)
+
+            For faster synthesis on NVIDIA GPUs:
+
+            1. Install CUDA 12 and cuDNN 9:
+               ```
+               winget install Nvidia.CUDA
+               winget install Nvidia.cuDNN
+               ```
+               Or download from [NVIDIA CUDA](https://developer.nvidia.com/cuda-downloads) / [NVIDIA cuDNN](https://developer.nvidia.com/cudnn-downloads).
+            2. Download and run **LightBlue-TTS-Setup.exe**
+            3. Download and run **LightBlue-TTS-Models.exe**
+            4. Download and run **LightBlue-TTS-ORT-GPU.exe** (replaces CPU runtime with GPU version)
+            5. Select a "GPU" voice variant in Windows speech settings.
+
+            ---
+
+            ### Voice Variants
+
+            Each voice (male "Shaul" / female "Rotem") has multiple quality presets:
+            - **4 steps** — fastest, lower quality (CPU only)
+            - **8 steps** — good balance
+            - **32 steps** — high quality
+            - **64 steps** — best quality, slowest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
