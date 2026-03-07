@@ -1,6 +1,6 @@
 # LightBlue SAPI - Hebrew Neural TTS for Windows
 
-A native Windows SAPI 5 text-to-speech engine for Hebrew, powered by the [LightBlue](https://github.com/notmax123/LightBlue) neural TTS model.
+A native Windows SAPI 5 text-to-speech engine for Hebrew, powered by the [Light-BlueTTS](https://github.com/maxmelichov/Light-BlueTTS) neural TTS model.
 
 Registers as a standard Windows voice — works with any SAPI 5 application (Narrator, screen readers, Balabolka, etc.).
 
@@ -155,7 +155,7 @@ See [docs/backbone-onnx-surgery.md](docs/backbone-onnx-surgery.md) for details.
 
 ## Credits
 
-- **LightBlue TTS** model by [notmax123](https://github.com/notmax123/LightBlue) (HuggingFace: [notmax123/LightBlue](https://huggingface.co/notmax123/LightBlue))
+- **Light-BlueTTS** model by [Max Melichov](https://github.com/maxmelichov/Light-BlueTTS) (HuggingFace: [notmax123/LightBlue](https://huggingface.co/notmax123/LightBlue))
 - **Phonikud** Hebrew diacritization by [thewh1teagle](https://github.com/thewh1teagle/phonikud) (ONNX: [thewh1teagle/phonikud-onnx](https://huggingface.co/thewh1teagle/phonikud-onnx))
 - **ONNX Runtime** by Microsoft
 - SAPI 5 engine implementation by Shimon Doodkin
