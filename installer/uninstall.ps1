@@ -1,13 +1,13 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    Uninstalls LightBlue TTS SAPI 5 voice from Windows.
+    Uninstalls LightBlue TTS SAPI SAPI 5 voice from Windows.
 .DESCRIPTION
     Unregisters the COM server and removes the installation directory.
 #>
 
 param(
-    [string]$InstallDir = "$env:ProgramFiles\LightBlue TTS"
+    [string]$InstallDir = "$env:ProgramFiles\LightBlue TTS SAPI"
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,7 +15,7 @@ $ErrorActionPreference = "Stop"
 $DllName = "lightblue_sapi.dll"
 $DllPath = Join-Path $InstallDir $DllName
 
-Write-Host "Uninstalling LightBlue TTS..." -ForegroundColor Cyan
+Write-Host "Uninstalling LightBlue TTS SAPI..." -ForegroundColor Cyan
 
 # 1. Unregister the COM server
 if (Test-Path $DllPath) {
@@ -37,4 +37,4 @@ if (Test-Path $InstallDir) {
 }
 
 Write-Host ""
-Write-Host "LightBlue TTS uninstalled successfully." -ForegroundColor Green
+Write-Host "LightBlue TTS SAPI uninstalled successfully." -ForegroundColor Green

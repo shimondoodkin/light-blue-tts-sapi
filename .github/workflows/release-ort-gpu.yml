@@ -49,14 +49,14 @@ jobs:
       - name: Upload ORT GPU installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LightBlue-TTS-ORT-GPU
-          path: target/installer/LightBlue-TTS-ORT-GPU.exe
+          name: LightBlue-TTS-SAPI-ORT-GPU
+          path: target/installer/LightBlue-TTS-SAPI-ORT-GPU.exe
 
       - name: Upload to GitHub Release
         if: inputs.tag != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
-          files: target/installer/LightBlue-TTS-ORT-GPU.exe
+          files: target/installer/LightBlue-TTS-SAPI-ORT-GPU.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

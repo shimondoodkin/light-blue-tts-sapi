@@ -51,14 +51,14 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LightBlue-TTS-Setup
-          path: target/installer/LightBlue-TTS-Setup.exe
+          name: LightBlue-TTS-SAPI-Setup
+          path: target/installer/LightBlue-TTS-SAPI-Setup.exe
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: target/installer/LightBlue-TTS-Setup.exe
+          files: target/installer/LightBlue-TTS-SAPI-Setup.exe
           generate_release_notes: true
           body: |
             ## LightBlue Hebrew TTS — Windows SAPI 5 Voice Engine
@@ -67,9 +67,9 @@ jobs:
 
             | File | Description |
             |------|-------------|
-            | **LightBlue-TTS-Setup.exe** | App installer (DLL, CLI tools, DirectML runtime) |
-            | **LightBlue-TTS-Models.exe** | ONNX models (required, install separately) |
-            | **LightBlue-TTS-ORT-GPU.exe** | ONNX Runtime GPU — for CUDA/TensorRT (optional) |
+            | **LightBlue-TTS-SAPI-Setup.exe** | App installer (DLL, CLI tools, DirectML runtime) |
+            | **LightBlue-TTS-SAPI-Models.exe** | ONNX models (required, install separately) |
+            | **LightBlue-TTS-SAPI-ORT-GPU.exe** | ONNX Runtime GPU — for CUDA/TensorRT (optional) |
 
             > **Models and ORT GPU installers** are uploaded separately via manual workflows.
             > If they are not yet attached to this release, check back shortly or see [all releases](https://github.com/shimondoodkin/light-blue-tts-sapi/releases).
@@ -78,8 +78,8 @@ jobs:
 
             ### CPU-Only Install (simplest)
 
-            1. Download and run **LightBlue-TTS-Setup.exe**
-            2. Download and run **LightBlue-TTS-Models.exe**
+            1. Download and run **LightBlue-TTS-SAPI-Setup.exe**
+            2. Download and run **LightBlue-TTS-SAPI-Models.exe**
             3. Done! Select a "LightBlueTTS" voice in Windows speech settings.
 
             ### GPU Install (CUDA / TensorRT)
@@ -88,9 +88,9 @@ jobs:
 
             1. Install the latest **CUDA 12.x** from [CUDA Toolkit Archive](https://developer.nvidia.com/cuda-toolkit-archive)
             2. Install the latest **cuDNN 9.x** from [cuDNN Archive](https://developer.nvidia.com/cudnn-archive)
-            3. Download and run **LightBlue-TTS-Setup.exe** (install the app first)
-            4. Download and run **LightBlue-TTS-Models.exe** (installs into the app folder)
-            5. Download and run **LightBlue-TTS-ORT-GPU.exe** (overwrites CPU onnxruntime.dll with GPU version — must be installed after the app setup)
+            3. Download and run **LightBlue-TTS-SAPI-Setup.exe** (install the app first)
+            4. Download and run **LightBlue-TTS-SAPI-Models.exe** (installs into the app folder)
+            5. Download and run **LightBlue-TTS-SAPI-ORT-GPU.exe** (overwrites CPU onnxruntime.dll with GPU version — must be installed after the app setup)
             6. Select a "GPU" voice variant in Windows speech settings.
 
             ---

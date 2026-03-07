@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Download LightBlue TTS models from HuggingFace.
+Download LightBlue TTS SAPI models from HuggingFace.
 
 Usage:
     python download_models.py                     # download models
@@ -87,7 +87,7 @@ def find_base_dir():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Download LightBlue TTS models")
+    parser = argparse.ArgumentParser(description="Download LightBlue TTS SAPI models")
     parser.add_argument("--dir", help="Target directory (default: auto-detect)")
     parser.add_argument("--force", action="store_true",
                         help="Re-download files even if they exist")
@@ -97,7 +97,7 @@ def main():
     base_dir = os.path.abspath(base_dir)
 
     print("=" * 50)
-    print("LightBlue TTS Model Downloader")
+    print("LightBlue TTS SAPI Model Downloader")
     print("=" * 50)
     print(f"Target: {base_dir}")
     print()

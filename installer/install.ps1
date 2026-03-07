@@ -1,7 +1,7 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    Installs LightBlue TTS as a SAPI 5 voice on Windows.
+    Installs LightBlue TTS SAPI as a SAPI 5 voice on Windows.
 .DESCRIPTION
     Copies the built DLL, ONNX models, ONNX Runtime, and Phonikud model
     to a permanent location and registers the COM server.
@@ -9,7 +9,7 @@
 
 param(
     [string]$BuildProfile = "release",
-    [string]$InstallDir   = "$env:ProgramFiles\LightBlue TTS"
+    [string]$InstallDir   = "$env:ProgramFiles\LightBlue TTS SAPI"
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,7 +28,7 @@ if (-not (Test-Path $DllSource)) {
     exit 1
 }
 
-Write-Host "Installing LightBlue TTS to: $InstallDir" -ForegroundColor Cyan
+Write-Host "Installing LightBlue TTS SAPI to: $InstallDir" -ForegroundColor Cyan
 
 # Create install directory
 if (-not (Test-Path $InstallDir)) {
@@ -73,5 +73,5 @@ if ($regResult.ExitCode -ne 0) {
 }
 
 Write-Host ""
-Write-Host "LightBlue TTS installed successfully!" -ForegroundColor Green
+Write-Host "LightBlue TTS SAPI installed successfully!" -ForegroundColor Green
 Write-Host "The voice should now appear in Windows Speech settings and any SAPI 5 application."

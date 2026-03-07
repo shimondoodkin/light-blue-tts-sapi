@@ -1,18 +1,18 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Downloads or updates LightBlue TTS models from HuggingFace.
+    Downloads or updates LightBlue TTS SAPI models from HuggingFace.
 .DESCRIPTION
     Fetches ONNX models, phonikud model, tokenizer, and style configs.
     Can be re-run to update models to the latest version.
 .PARAMETER InstallDir
-    Installation directory (default: Program Files\LightBlue TTS)
+    Installation directory (default: Program Files\LightBlue TTS SAPI)
 .PARAMETER Force
     Re-download all files even if they already exist
 #>
 
 param(
-    [string]$InstallDir = "$env:ProgramFiles\LightBlue TTS",
+    [string]$InstallDir = "$env:ProgramFiles\LightBlue TTS SAPI",
     [switch]$Force
 )
 
@@ -47,7 +47,7 @@ $Files = @(
     @{ Url = "$HF_PHONIKUD/tokenizer.json";            Path = "$ModelsDir\tokenizer.json" }
 )
 
-Write-Host "=== LightBlue TTS Model Downloader ===" -ForegroundColor Cyan
+Write-Host "=== LightBlue TTS SAPI Model Downloader ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Install directory: $InstallDir"
 Write-Host ""

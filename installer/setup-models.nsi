@@ -1,12 +1,12 @@
-; LightBlue Hebrew TTS - Models Installer
+; LightBlue Hebrew TTS SAPI - Models Installer
 ; Extracts pre-optimized ONNX models to the app folder
 
 !include "MUI2.nsh"
 
 ; --- General ---
-Name "LightBlue Hebrew TTS - Models"
-OutFile "..\target\installer\LightBlue-TTS-Models.exe"
-InstallDir "$PROGRAMFILES64\LightBlue TTS"
+Name "LightBlue Hebrew TTS SAPI - Models"
+OutFile "..\target\installer\LightBlue-TTS-SAPI-Models.exe"
+InstallDir "$PROGRAMFILES64\LightBlue TTS SAPI"
 RequestExecutionLevel admin
 Unicode true
 

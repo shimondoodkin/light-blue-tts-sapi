@@ -1,12 +1,12 @@
-; LightBlue Hebrew TTS - NSIS Installer (App Only)
-; No models included — install models separately with LightBlue-TTS-Models.exe
+; LightBlue Hebrew TTS SAPI - NSIS Installer (App Only)
+; No models included — install models separately with LightBlue-TTS-SAPI-Models.exe
 
 !include "MUI2.nsh"
 
 ; --- General ---
-Name "LightBlue Hebrew TTS"
-OutFile "..\target\installer\LightBlue-TTS-Setup.exe"
-InstallDir "$PROGRAMFILES64\LightBlue TTS"
+Name "LightBlue Hebrew TTS SAPI"
+OutFile "..\target\installer\LightBlue-TTS-SAPI-Setup.exe"
+InstallDir "$PROGRAMFILES64\LightBlue TTS SAPI"
 RequestExecutionLevel admin
 Unicode true
 
@@ -60,27 +60,27 @@ Section "Install"
     WriteUninstaller "$INSTDIR\Uninstall.exe"
 
     ; Start menu shortcuts
-    CreateDirectory "$SMPROGRAMS\LightBlue TTS"
-    CreateShortcut "$SMPROGRAMS\LightBlue TTS\Download Models.lnk" \
+    CreateDirectory "$SMPROGRAMS\LightBlue TTS SAPI"
+    CreateShortcut "$SMPROGRAMS\LightBlue TTS SAPI\Download Models.lnk" \
         "$INSTDIR\lightblue-download.exe" \
         '--dir "$INSTDIR"' \
         "$INSTDIR\icon.ico"
-    CreateShortcut "$SMPROGRAMS\LightBlue TTS\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
+    CreateShortcut "$SMPROGRAMS\LightBlue TTS SAPI\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
 
     ; Add/Remove Programs entry
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTS" \
-        "DisplayName" "LightBlue Hebrew TTS"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTS" \
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTSSAPI" \
+        "DisplayName" "LightBlue Hebrew TTS SAPI"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTSSAPI" \
         "UninstallString" '"$INSTDIR\Uninstall.exe"'
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTS" \
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTSSAPI" \
         "Publisher" "LightBlue"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTS" \
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTSSAPI" \
         "DisplayIcon" "$INSTDIR\icon.ico"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTS" \
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTSSAPI" \
         "DisplayVersion" "1.0.0"
-    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTS" \
+    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTSSAPI" \
         "NoModify" 1
-    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTS" \
+    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTSSAPI" \
         "NoRepair" 1
 SectionEnd
 
@@ -107,8 +107,8 @@ Section "Uninstall"
     RMDir "$INSTDIR"
 
     ; Remove Start Menu shortcuts
-    RMDir /r "$SMPROGRAMS\LightBlue TTS"
+    RMDir /r "$SMPROGRAMS\LightBlue TTS SAPI"
 
     ; Remove Add/Remove Programs entry
-    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTS"
+    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTSSAPI"
 SectionEnd

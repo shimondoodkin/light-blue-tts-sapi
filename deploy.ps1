@@ -1,4 +1,4 @@
-$dest = "C:\Program Files\LightBlue TTS"
+$dest = "C:\Program Files\LightBlue TTS SAPI"
 $src = "C:\Users\user\Documents\projects\light-blue-tts-windows\lightblue-sapi\target\release"
 
 regsvr32 /u /s "$dest\lightblue_sapi.dll"
