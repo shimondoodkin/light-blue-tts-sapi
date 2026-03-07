@@ -53,17 +53,12 @@ cargo build --release --features cuda
 Build outputs in `target/release/`:
 - `lightblue_sapi.dll` — SAPI 5 COM engine
 - `lightblue-tts.exe` — CLI tool
-- `lightblue-download.exe` — model downloader
 - `onnxruntime.dll` — ONNX Runtime (auto-downloaded)
 
 ### Download Models
 
 ```bash
-# From original HuggingFace repos
-python scripts/download_models.py --original
-
-# Or use the Rust downloader
-cargo run --release --bin lightblue-download -- --dir .
+python scripts/download_models.py
 ```
 
 ### Register the SAPI Voice
@@ -88,7 +83,7 @@ The `backbone_keys.onnx` model contains CPU-only ops that cause CPU<->GPU memory
 
 ```bash
 pip install onnx numpy
-python scripts/backbone_surgery.py models/onnx/backbone_keys_orig.onnx models/onnx/backbone_keys.onnx
+python scripts/backbone_surgery.py models/backbone_keys_orig.onnx models/backbone_keys.onnx
 ```
 
 All models are also processed with [onnxsim](https://github.com/daquexian/onnx-simplifier) (`python -m onnxsim model.onnx model.onnx`) to optimize the graph.
