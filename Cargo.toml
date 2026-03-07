@@ -1,0 +1,70 @@
+[package]
+name = "lightblue-sapi"
+version = "0.1.0"
+edition = "2021"
+description = "Hebrew neural TTS as a Windows SAPI 5 voice engine"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# ONNX Runtime
+ort = { version = "=2.0.0-rc.11", default-features = false, features = ["ndarray", "load-dynamic"] }
+ndarray = "0.17"
+
+# Hebrew diacritization (nikud)
+phonikud-rs = { git = "https://github.com/shimondoodkin/phonikud-rs.git" }
+
+# Windows COM / SAPI
+windows = { version = "0.58", features = [
+    "implement",
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Ole",
+    "Win32_System_Registry",
+    "Win32_System_LibraryLoader",
+    "Win32_Media_Speech",
+    "Win32_Security",
+] }
+windows-core = "0.58"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# HTTP & progress (for downloader CLI)
+reqwest = { version = "0.12", features = ["blocking", "rustls-tls"], default-features = false }
+indicatif = "0.17"
+zip = "2.0"
+flate2 = "1.0"
+tar = "0.4"
+
+# Utils
+regex = "1.0"
+unicode-normalization = "0.1"
+hound = "3.5"
+log = "0.4"
+env_logger = "0.11"
+thiserror = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
+
+[build-dependencies]
+# No extra build-dependencies needed -- build.rs uses curl + PowerShell
+
+[dev-dependencies]
+
+[[bin]]
+name = "lightblue-tts"
+path = "src/bin/tts_cli.rs"
+
+[[bin]]
+name = "lightblue-test"
+path = "src/bin/lightblue_test.rs"
+
+[[bin]]
+name = "lightblue-download"
+path = "src/bin/download_models.rs"
+
+[features]
+default = []
+cuda = ["ort/cuda"]

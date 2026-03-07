@@ -1,0 +1,77 @@
+#Requires -RunAsAdministrator
+<#
+.SYNOPSIS
+    Installs LightBlue TTS as a SAPI 5 voice on Windows.
+.DESCRIPTION
+    Copies the built DLL, ONNX models, ONNX Runtime, and Phonikud model
+    to a permanent location and registers the COM server.
+#>
+
+param(
+    [string]$BuildProfile = "release",
+    [string]$InstallDir   = "$env:ProgramFiles\LightBlue TTS"
+)
+
+$ErrorActionPreference = "Stop"
+
+# Resolve paths relative to this script's location
+$ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
+$RepoRoot   = Split-Path -Parent $ScriptDir
+$TargetDir  = Join-Path $RepoRoot "target\$BuildProfile"
+
+$DllName    = "lightblue_sapi.dll"
+$DllSource  = Join-Path $TargetDir $DllName
+
+# Validate that the DLL exists
+if (-not (Test-Path $DllSource)) {
+    Write-Error "DLL not found at $DllSource. Did you build in $BuildProfile mode? Run: cargo build --release"
+    exit 1
+}
+
+Write-Host "Installing LightBlue TTS to: $InstallDir" -ForegroundColor Cyan
+
+# Create install directory
+if (-not (Test-Path $InstallDir)) {
+    New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+}
+
+# 1. Copy the main DLL
+Write-Host "  Copying $DllName..."
+Copy-Item -Path $DllSource -Destination (Join-Path $InstallDir $DllName) -Force
+
+# 2. Copy onnxruntime.dll (and CUDA provider DLLs if present)
+$OrtDlls = @("onnxruntime.dll", "onnxruntime_providers_cuda.dll", "onnxruntime_providers_shared.dll")
+foreach ($dll in $OrtDlls) {
+    $src = Join-Path $TargetDir $dll
+    if (Test-Path $src) {
+        Write-Host "  Copying $dll..."
+        Copy-Item -Path $src -Destination (Join-Path $InstallDir $dll) -Force
+    }
+}
+
+# 3. Copy entire models directory (ONNX models, phonikud, tokenizer, style, tts.json)
+$ModelsSource = Join-Path $RepoRoot "models"
+if (Test-Path $ModelsSource) {
+    Write-Host "  Copying models (ONNX pipeline + phonikud + tokenizer + style)..."
+    $ModelsDest = Join-Path $InstallDir "models"
+    if (Test-Path $ModelsDest) {
+        Remove-Item -Path $ModelsDest -Recurse -Force
+    }
+    Copy-Item -Path $ModelsSource -Destination $ModelsDest -Recurse -Force
+} else {
+    Write-Error "Models directory not found at $ModelsSource. Download models first."
+    exit 1
+}
+
+# 5. Register the COM server
+Write-Host "  Registering COM server..."
+$DllPath = Join-Path $InstallDir $DllName
+$regResult = Start-Process -FilePath "regsvr32" -ArgumentList "/s `"$DllPath`"" -Wait -PassThru
+if ($regResult.ExitCode -ne 0) {
+    Write-Error "regsvr32 failed with exit code $($regResult.ExitCode)"
+    exit 1
+}
+
+Write-Host ""
+Write-Host "LightBlue TTS installed successfully!" -ForegroundColor Green
+Write-Host "The voice should now appear in Windows Speech settings and any SAPI 5 application."

@@ -1,0 +1,62 @@
+name: Release ORT GPU
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to attach the asset to (e.g. v1.0.0)'
+        required: true
+        type: string
+      ort_version:
+        description: 'ONNX Runtime GPU version'
+        required: true
+        default: '1.23.2'
+        type: string
+
+jobs:
+  ort-gpu:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download ONNX Runtime GPU
+        shell: bash
+        run: |
+          ORT_VERSION="${{ inputs.ort_version }}"
+          curl -L -o ort-gpu.zip "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-win-x64-gpu-${ORT_VERSION}.zip"
+          unzip -q ort-gpu.zip
+
+          # Copy DLLs to installer directory for NSIS
+          ORT_DIR="onnxruntime-win-x64-gpu-${ORT_VERSION}/lib"
+          cp "${ORT_DIR}/onnxruntime.dll" installer/
+          cp "${ORT_DIR}/onnxruntime_providers_shared.dll" installer/
+          cp "${ORT_DIR}/onnxruntime_providers_cuda.dll" installer/
+          cp "${ORT_DIR}/onnxruntime_providers_tensorrt.dll" installer/
+
+      - name: Install NSIS
+        run: choco install nsis -y
+
+      - name: Create installer output directory
+        run: mkdir -p target/installer
+        shell: bash
+
+      - name: Build NSIS ORT GPU installer
+        shell: cmd
+        working-directory: installer
+        run: |
+          "C:\Program Files (x86)\NSIS\makensis.exe" setup-ort-gpu.nsi
+
+      - name: Upload ORT GPU installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LightBlue-TTS-ORT-GPU
+          path: target/installer/LightBlue-TTS-ORT-GPU.exe
+
+      - name: Upload to GitHub Release
+        if: inputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: target/installer/LightBlue-TTS-ORT-GPU.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

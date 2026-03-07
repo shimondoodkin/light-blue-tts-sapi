@@ -1,0 +1,82 @@
+name: Release Models
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to attach the asset to (e.g. v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  models:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download models from HuggingFace
+        shell: bash
+        run: |
+          mkdir -p models/onnx models/voices
+
+          HF_TTS="https://huggingface.co/notmax123/LightBlue/resolve/main"
+          HF_PHONIKUD="https://huggingface.co/thewh1teagle/phonikud-onnx/resolve/main"
+
+          # TTS ONNX models
+          for f in backbone_keys.onnx text_encoder.onnx reference_encoder.onnx vocoder.onnx length_pred.onnx length_pred_style.onnx stats.npz uncond.npz; do
+            echo "Downloading $f..."
+            curl -L -o "models/onnx/$f" "$HF_TTS/onnx/$f"
+          done
+
+          # TTS config
+          curl -L -o models/tts.json "$HF_TTS/tts.json"
+          curl -L -o models/voices/male1.json "$HF_TTS/style.json"
+          curl -L -o models/voices/female1.json "$HF_TTS/style_female.json"
+
+          # Phonikud
+          curl -L -o models/phonikud.onnx "$HF_PHONIKUD/phonikud.onnx"
+          curl -L -o models/tokenizer.json "$HF_PHONIKUD/tokenizer.json"
+
+      - name: Optimize models (onnxsim + backbone surgery)
+        shell: bash
+        run: |
+          pip install onnx numpy onnxsim
+
+          # Simplify all ONNX models with onnxsim
+          for f in models/onnx/*.onnx models/phonikud.onnx; do
+            echo "Simplifying $f..."
+            python -m onnxsim "$f" "$f"
+          done
+
+          # Apply backbone surgery for full GPU execution
+          cp models/onnx/backbone_keys.onnx models/onnx/backbone_keys_orig.onnx
+          python scripts/backbone_surgery.py models/onnx/backbone_keys_orig.onnx models/onnx/backbone_keys.onnx
+          rm models/onnx/backbone_keys_orig.onnx
+
+      - name: Install NSIS
+        run: choco install nsis -y
+
+      - name: Create installer output directory
+        run: mkdir -p target/installer
+        shell: bash
+
+      - name: Build NSIS models installer
+        shell: cmd
+        working-directory: installer
+        run: |
+          "C:\Program Files (x86)\NSIS\makensis.exe" setup-models.nsi
+
+      - name: Upload models installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LightBlue-TTS-Models
+          path: target/installer/LightBlue-TTS-Models.exe
+
+      - name: Upload to GitHub Release
+        if: inputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: target/installer/LightBlue-TTS-Models.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

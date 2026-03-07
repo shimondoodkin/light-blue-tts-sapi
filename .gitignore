@@ -1,0 +1,46 @@
+target/
+ort-winml-*/
+onnxruntime-win-x64-gpu-*/
+onnxruntime-win-x64-*/
+ort-directml-*/
+ort-openvino/
+openvino/
+ovep-win/
+*.zip
+*.nupkg
+*.engine
+*.profile
+*.timing
+*.wav
+
+# Models (downloaded separately)
+models/onnx/*.onnx
+models/onnx/*.npz
+models/*.onnx
+models/tokenizer.json
+models/tts.json
+models/voices/
+models/style.json
+models/style_female.json
+
+# Keep the models/ directory structure via .gitkeep
+!models/onnx/.gitkeep
+!models/.gitkeep
+
+# Build artifacts
+onnxruntime.dll
+models_orig/
+
+# Test files
+test_*.py
+tmp_*.py
+test_register.ps1
+
+# IDE / tool config
+.claude/
+installer/.claude/
+
+# Unused installer formats
+installer/msix/
+installer/*.iss
+installer/build_msix.ps1
