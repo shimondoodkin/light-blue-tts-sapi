@@ -27,33 +27,66 @@ For faster synthesis on NVIDIA GPUs:
 
 1. Install the latest **CUDA 12.x** from [CUDA Toolkit Archive](https://developer.nvidia.com/cuda-toolkit-archive)
 2. Install the latest **cuDNN 9.x** from [cuDNN Archive](https://developer.nvidia.com/cudnn-archive)
-
 3. Download and run **LightBlue-TTS-SAPI-Setup.exe** (install the app first)
 4. Download and run **LightBlue-TTS-SAPI-Models.exe** (installs into the app folder)
 5. Download and run **LightBlue-TTS-SAPI-ORT-GPU.exe** (overwrites CPU onnxruntime.dll with GPU version — must be installed after the app setup)
 6. Select one of the "GPU" voice variants in Windows speech settings.
 
+## Download Models
+
+You can either download a pre-built models ZIP from the [Releases](https://github.com/shimondoodkin/light-blue-tts-sapi/releases) page, or prepare them from scratch:
+
+### Prepare models from scratch
+
+```bash
+# 1. Download raw models from HuggingFace
+python scripts/download_models.py
+
+# 2. Apply backbone surgery (GPU optimization)
+pip install onnx numpy
+python scripts/backbone_surgery.py
+
+# 3. Simplify all models with onnxsim
+pip install onnxsim
+python scripts/simplify_models_in_place.py
+```
+
+> **Note:** `onnxsim` may not have prebuilt wheels for your Python version on Windows.
+> If `pip install onnxsim` fails, use the included builder script:
+> ```bash
+> python scripts/build_onnxsim.py
+> ```
+> It checks prerequisites (Git, CMake, MSVC), installs what's missing, then clones and builds onnxsim from source.
+
 ## Building from Source
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) (stable, MSVC toolchain)
 - Windows 10/11 x64
+- [Rust](https://rustup.rs/) (stable, MSVC toolchain)
+- [Visual Studio](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++" workload
+- [Python 3.x](https://www.python.org/downloads/) (for model scripts)
+- [NSIS](https://nsis.sourceforge.io/) (for building installers)
+
+```bash
+# Install Rust (if not installed)
+winget install Rustlang.Rustup
+
+# Install NSIS (if not installed)
+choco install nsis -y
+```
 
 ### Build
 
 ```bash
 # CPU/DirectML build (default — build.rs auto-downloads WinML ORT)
 cargo build --release
-
-# CUDA/TensorRT build (downloads GPU ORT automatically)
-cargo build --release --features cuda
 ```
 
 Build outputs in `target/release/`:
 - `lightblue_sapi.dll` — SAPI 5 COM engine
 - `lightblue-tts.exe` — CLI tool
-- `onnxruntime.dll` — ONNX Runtime (auto-downloaded)
+- `onnxruntime.dll` — ONNX Runtime (auto-downloaded by build.rs)
 
 ### Download Models
 
@@ -67,14 +100,50 @@ python scripts/download_models.py
 regsvr32 target\release\lightblue_sapi.dll
 ```
 
-### Build NSIS Installers
+### Deploy to Program Files (development)
 
-Install [NSIS](https://nsis.sourceforge.io/), then:
+PowerShell scripts for deploying built files to the install directory without running the full NSIS installer:
+
+```powershell
+# Deploy DLL + ORT + register COM (requires admin)
+powershell -ExecutionPolicy Bypass -File installer\install.ps1
+
+# Deploy models only (requires admin)
+powershell -ExecutionPolicy Bypass -File installer\deploy-models.ps1
+
+# Uninstall (unregister COM + remove install directory)
+powershell -ExecutionPolicy Bypass -File installer\uninstall.ps1
+```
+
+### Build NSIS Installers
 
 ```bash
 mkdir target\installer
+
+# App installer
 makensis installer\setup.nsi
+
+# Models installer (requires models/ to be populated)
 makensis installer\setup-models.nsi
+```
+
+### Build ORT GPU Installer
+
+The ORT GPU installer repackages the official [ONNX Runtime GPU release](https://github.com/microsoft/onnxruntime/releases) DLLs into an NSIS installer that extracts them to the app folder.
+
+```bash
+# Download ONNX Runtime GPU (example version)
+curl -L -o ort-gpu.zip https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-win-x64-gpu-1.23.2.zip
+unzip ort-gpu.zip
+
+# Copy DLLs to installer directory
+cp onnxruntime-win-x64-gpu-1.23.2/lib/onnxruntime.dll installer/
+cp onnxruntime-win-x64-gpu-1.23.2/lib/onnxruntime_providers_shared.dll installer/
+cp onnxruntime-win-x64-gpu-1.23.2/lib/onnxruntime_providers_cuda.dll installer/
+cp onnxruntime-win-x64-gpu-1.23.2/lib/onnxruntime_providers_tensorrt.dll installer/
+
+# Build installer
+makensis installer\setup-ort-gpu.nsi
 ```
 
 ## Model Surgery (GPU Optimization)
@@ -86,7 +155,7 @@ pip install onnx numpy
 python scripts/backbone_surgery.py models/backbone_keys_orig.onnx models/backbone_keys.onnx
 ```
 
-All models are also processed with [onnxsim](https://github.com/daquexian/onnx-simplifier) (`python -m onnxsim model.onnx model.onnx`) to optimize the graph.
+All models are also processed with [onnxsim](https://github.com/daquexian/onnx-simplifier) (`python scripts/simplify_models_in_place.py`) to optimize the graph.
 
 See [docs/backbone-onnx-surgery.md](docs/backbone-onnx-surgery.md) for details.
 
