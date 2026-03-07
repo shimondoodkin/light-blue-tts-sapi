@@ -13,8 +13,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RepoRoot   = Split-Path -Parent $ScriptDir
+$RepoRoot   = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ModelsSource = Join-Path $RepoRoot "models"
 
 if (-not (Test-Path $ModelsSource)) {

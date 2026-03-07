@@ -15,8 +15,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Resolve paths relative to this script's location
-$ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RepoRoot   = Split-Path -Parent $ScriptDir
+$RepoRoot   = Split-Path -Parent $MyInvocation.MyCommand.Path
 $TargetDir  = Join-Path $RepoRoot "target\$BuildProfile"
 
 $DllName    = "lightblue_sapi.dll"

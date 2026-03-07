@@ -105,11 +105,11 @@ regsvr32 target\release\lightblue_sapi.dll
 PowerShell scripts for deploying built files to the install directory without running the full NSIS installer:
 
 ```powershell
-# Deploy DLL + ORT + register COM (requires admin)
-powershell -ExecutionPolicy Bypass -File installer\install.ps1
+# Deploy DLL + ORT + models + register COM (requires admin)
+powershell -ExecutionPolicy Bypass -File dev-deploy-sapi.ps1
 
 # Deploy models only (requires admin)
-powershell -ExecutionPolicy Bypass -File installer\deploy-models.ps1
+powershell -ExecutionPolicy Bypass -File dev-deploy-models.ps1
 
 # Uninstall (unregister COM + remove install directory)
 powershell -ExecutionPolicy Bypass -File installer\uninstall.ps1
