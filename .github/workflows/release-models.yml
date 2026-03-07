@@ -14,56 +14,49 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Download models from HuggingFace
         shell: bash
-        run: |
-          mkdir -p models/voices
+        run: python scripts/download_models.py --force
 
-          HF_TTS="https://huggingface.co/notmax123/LightBlue/resolve/main"
-          HF_PHONIKUD="https://huggingface.co/thewh1teagle/phonikud-onnx/resolve/main"
+      - name: Install Python dependencies
+        run: pip install onnx onnxsim numpy
 
-          # TTS ONNX models (flat in models/)
-          for f in backbone_keys.onnx text_encoder.onnx reference_encoder.onnx vocoder.onnx length_pred.onnx length_pred_style.onnx stats.npz uncond.npz; do
-            echo "Downloading $f..."
-            curl -L -o "models/$f" "$HF_TTS/onnx/$f"
-          done
-
-          # Voice styles
-          curl -L -o models/voices/male1.json "$HF_TTS/style.json"
-          curl -L -o models/voices/female1.json "$HF_TTS/style_female.json"
-
-          # Phonikud
-          curl -L -o models/phonikud.onnx "$HF_PHONIKUD/phonikud.onnx"
-          curl -L -o models/tokenizer.json "$HF_PHONIKUD/tokenizer.json"
-
-      - name: Optimize models (onnxsim + backbone surgery)
+      - name: Backbone surgery
         shell: bash
         run: |
-          pip install onnx numpy onnxsim
-
-          # Simplify all ONNX models with onnxsim
-          for f in models/*.onnx; do
-            echo "Simplifying $f..."
-            python -m onnxsim "$f" "$f"
-          done
-
-          # Apply backbone surgery for full GPU execution
           cp models/backbone_keys.onnx models/backbone_keys_orig.onnx
           python scripts/backbone_surgery.py models/backbone_keys_orig.onnx models/backbone_keys.onnx
           rm models/backbone_keys_orig.onnx
 
+      - name: Simplify models with onnxsim
+        run: python scripts/simplify_models_in_place.py
+
+      - name: Create models ZIP
+        shell: bash
+        run: |
+          mkdir -p target/installer
+          cd models
+          7z a -tzip ../target/installer/LightBlue-TTS-Models.zip .
+
       - name: Install NSIS
         run: choco install nsis -y
-
-      - name: Create installer output directory
-        run: mkdir -p target/installer
-        shell: bash
 
       - name: Build NSIS models installer
         shell: cmd
         working-directory: installer
         run: |
           "C:\Program Files (x86)\NSIS\makensis.exe" setup-models.nsi
+
+      - name: Upload models ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LightBlue-TTS-Models-ZIP
+          path: target/installer/LightBlue-TTS-Models.zip
 
       - name: Upload models installer artifact
         uses: actions/upload-artifact@v4
@@ -76,6 +69,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
-          files: target/installer/LightBlue-TTS-Models.exe
+          files: |
+            target/installer/LightBlue-TTS-Models.exe
+            target/installer/LightBlue-TTS-Models.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
