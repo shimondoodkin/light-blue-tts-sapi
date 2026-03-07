@@ -13,6 +13,9 @@ on:
         default: '1.23.2'
         type: string
 
+permissions:
+  contents: write
+
 jobs:
   ort-gpu:
     runs-on: windows-latest
