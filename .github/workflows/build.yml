@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to attach the asset to (e.g. v1.0.0)'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -58,9 +63,10 @@ jobs:
           path: target/installer/LightBlue-TTS-SAPI-Setup.exe
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: target/installer/LightBlue-TTS-SAPI-Setup.exe
           generate_release_notes: true
           body: |
