@@ -25,17 +25,19 @@ Registers as a standard Windows voice — works with any SAPI 5 application (Nar
 
 For faster synthesis on NVIDIA GPUs:
 
-1. Install **CUDA 12** and **cuDNN 9**:
+1. Install **CUDA 12** (via winget or manual download):
    ```
    winget install Nvidia.CUDA --version 12.9
    ```
-   Download cuDNN 9 from [cuDNN Archive](https://developer.nvidia.com/cudnn-archive) (not available via winget).
-   Or get CUDA manually from [CUDA Toolkit Archive](https://developer.nvidia.com/cuda-toolkit-archive).
+   Or download from [CUDA Toolkit Archive](https://developer.nvidia.com/cuda-toolkit-archive).
 
-2. Download and run **LightBlue-TTS-Setup.exe** (install the app first)
-3. Download and run **LightBlue-TTS-Models.exe** (installs into the app folder)
-4. Download and run **LightBlue-TTS-ORT-GPU.exe** (overwrites CPU onnxruntime.dll with GPU version — must be installed after the app setup)
-5. Select one of the "GPU" voice variants in Windows speech settings.
+2. Install **cuDNN 9** (manual download — not available via winget):
+   Download from [cuDNN Archive](https://developer.nvidia.com/cudnn-archive), extract, and copy DLLs to your CUDA install directory.
+
+3. Download and run **LightBlue-TTS-Setup.exe** (install the app first)
+4. Download and run **LightBlue-TTS-Models.exe** (installs into the app folder)
+5. Download and run **LightBlue-TTS-ORT-GPU.exe** (overwrites CPU onnxruntime.dll with GPU version — must be installed after the app setup)
+6. Select one of the "GPU" voice variants in Windows speech settings.
 
 ## Building from Source
 
