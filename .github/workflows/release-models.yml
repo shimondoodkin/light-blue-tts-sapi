@@ -44,7 +44,7 @@ jobs:
         run: |
           mkdir -p target/installer
           cd models
-          7z a -tzip ../target/installer/LightBlue-TTS-SAPI-Models.zip .
+          7z a -tzip ../target/installer/LightBlue-TTS-SAPI-Models-for-dev.zip .
 
       - name: Install NSIS
         run: choco install nsis -y
@@ -59,7 +59,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: LightBlue-TTS-SAPI-Models-ZIP
-          path: target/installer/LightBlue-TTS-SAPI-Models.zip
+          path: target/installer/LightBlue-TTS-SAPI-Models-for-dev.zip
 
       - name: Upload models installer artifact
         uses: actions/upload-artifact@v4
@@ -74,6 +74,6 @@ jobs:
           tag_name: ${{ inputs.tag }}
           files: |
             target/installer/LightBlue-TTS-SAPI-Models.exe
-            target/installer/LightBlue-TTS-SAPI-Models.zip
+            target/installer/LightBlue-TTS-SAPI-Models-for-dev.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
