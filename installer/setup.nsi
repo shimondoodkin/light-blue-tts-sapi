@@ -36,20 +36,15 @@ Section "Install"
     ; Main DLL, CLI tools
     File "..\target\release\lightblue_sapi.dll"
     File "..\target\release\lightblue-tts.exe"
-    File "..\target\release\lightblue-download.exe"
-
     ; ONNX Runtime (WinML/DirectML — CPU fallback)
     File "..\target\release\onnxruntime.dll"
-
-    ; Model download script
-    File "..\scripts\download_models.py"
 
     ; Management scripts
     File "install.ps1"
     File "uninstall.ps1"
 
     ; Create directory structure for models
-    CreateDirectory "$INSTDIR\models\onnx"
+    CreateDirectory "$INSTDIR\models"
     CreateDirectory "$INSTDIR\models\voices"
     CreateDirectory "$INSTDIR\dictionaries"
 
@@ -61,10 +56,6 @@ Section "Install"
 
     ; Start menu shortcuts
     CreateDirectory "$SMPROGRAMS\LightBlue TTS SAPI"
-    CreateShortcut "$SMPROGRAMS\LightBlue TTS SAPI\Download Models.lnk" \
-        "$INSTDIR\lightblue-download.exe" \
-        '--dir "$INSTDIR"' \
-        "$INSTDIR\icon.ico"
     CreateShortcut "$SMPROGRAMS\LightBlue TTS SAPI\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
 
     ; Add/Remove Programs entry
@@ -99,8 +90,6 @@ Section "Uninstall"
     Delete "$INSTDIR\onnxruntime_providers_cuda.dll"
     Delete "$INSTDIR\onnxruntime_providers_tensorrt.dll"
     Delete "$INSTDIR\lightblue-tts.exe"
-    Delete "$INSTDIR\lightblue-download.exe"
-    Delete "$INSTDIR\download_models.py"
     Delete "$INSTDIR\install.ps1"
     Delete "$INSTDIR\uninstall.ps1"
     Delete "$INSTDIR\Uninstall.exe"
