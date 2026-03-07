@@ -170,7 +170,7 @@ fn hundreds_to_word(n: u64) -> String {
 fn thousands_to_word(n: u64) -> String {
     match n {
         1  => "אֶ֫לֶף".to_string(),
-        2  => "אַלְפָאיִם".to_string(),
+        2  => "אַלְפַּאיִם".to_string(),
         3  => "שְׁלֹ֫שֶׁתאֲלָפִים".to_string(),
         4  => "אַרְבַּ֫עַתאֲלָפִים".to_string(),
         5  => "חֲמֵ֫שֶׁתאֲלָפִים".to_string(),
@@ -260,7 +260,7 @@ mod tests {
     }
 
     #[test]
-    fn test_thousands() { assert!(num_to_word(2000).contains("אַלְפַּ֫יִם")); }
+    fn test_thousands() { assert!(num_to_word(2000).contains("אַלְפַּאיִם")); }
 
     #[test]
     fn test_expand_in_text() {
