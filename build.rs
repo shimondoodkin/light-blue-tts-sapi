@@ -9,7 +9,7 @@ const ORT_CUDA_VERSION: &str = "1.23.2";
 /// Intel OpenVINO ORT NuGet package.
 const ORT_OPENVINO_PACKAGE: &str = "intel.ml.onnxruntime.openvino";
 
-/// PyPI package for ORT DirectML (default CPU build).
+/// PyPI package name for DirectML DLL extraction.
 const PYPI_DIRECTML_PACKAGE: &str = "onnxruntime-directml";
 
 /// NuGet v3 flat-container base URL for version discovery.
@@ -54,26 +54,81 @@ fn main() {
 }
 
 // ---------------------------------------------------------------------------
-// DirectML download (default — from PyPI wheel)
+// DirectML download (default)
+//   - onnxruntime.dll + onnxruntime_providers_shared.dll from GitHub releases
+//   - DirectML.dll from PyPI onnxruntime-directml wheel
 // ---------------------------------------------------------------------------
 
-/// Download or reuse the ORT DirectML package from PyPI.
+/// Get the latest ORT release version from GitHub API.
+fn github_latest_ort_version() -> String {
+    let json_str = curl_fetch_string("https://api.github.com/repos/microsoft/onnxruntime/releases/latest");
+
+    // Extract "tag_name":"vX.Y.Z"
+    let marker = "\"tag_name\":";
+    let pos = json_str.find(marker).expect("No tag_name in GitHub API response");
+    let after = &json_str[pos + marker.len()..];
+    let after = after.trim_start();
+    assert!(after.starts_with('"'), "Expected quoted tag_name");
+    let start = 1;
+    let end = after[start..].find('"').expect("Unterminated tag_name") + start;
+    let tag = &after[start..end];
+    // Strip leading 'v' if present
+    tag.strip_prefix('v').unwrap_or(tag).to_string()
+}
+
+/// Download or reuse ORT CPU from GitHub + DirectML.dll from PyPI.
 /// Returns (lib_dir, version_string).
 fn download_or_reuse_directml(manifest_dir: &Path) -> (PathBuf, String) {
-    let (version, wheel_url) = pypi_latest_wheel(PYPI_DIRECTML_PACKAGE);
+    let version = github_latest_ort_version();
     let folder = format!("ort-directml-{}", version);
-    let ort_dir = manifest_dir.join(&folder);
-    let lib_dir = ort_dir.join("onnxruntime").join("capi");
+    let lib_dir = manifest_dir.join(&folder).join("lib");
 
     if !lib_dir.exists() {
-        println!("cargo:warning=Downloading ORT DirectML v{} from PyPI...", version);
-        let zip_path = manifest_dir.join(format!("{}.zip", folder));
+        println!("cargo:warning=Downloading ORT v{} from GitHub + DirectML from PyPI...", version);
+        let _ = fs::create_dir_all(&lib_dir);
 
-        curl_download(&wheel_url, &zip_path);
-        extract_zip(&zip_path, &ort_dir);
-        let _ = fs::remove_file(&zip_path);
+        // 1. Download ORT CPU from GitHub releases
+        let cpu_folder = format!("onnxruntime-win-x64-{}", version);
+        let cpu_dir = manifest_dir.join(&cpu_folder);
+        let cpu_lib_dir = cpu_dir.join("lib");
+        if !cpu_lib_dir.exists() {
+            let url = format!(
+                "https://github.com/microsoft/onnxruntime/releases/download/v{ver}/onnxruntime-win-x64-{ver}.zip",
+                ver = version,
+            );
+            let zip_path = manifest_dir.join(format!("{}.zip", cpu_folder));
+            curl_download(&url, &zip_path);
+            extract_zip(&zip_path, manifest_dir);
+            let _ = fs::remove_file(&zip_path);
+        }
 
-        println!("cargo:warning=ORT DirectML extracted to {}", ort_dir.display());
+        // Copy onnxruntime.dll and onnxruntime_providers_shared.dll
+        for dll in ["onnxruntime.dll", "onnxruntime_providers_shared.dll"] {
+            let src = cpu_lib_dir.join(dll);
+            if src.exists() {
+                fs::copy(&src, lib_dir.join(dll)).expect(&format!("Failed to copy {}", dll));
+            }
+        }
+
+        // 2. Download DirectML.dll from PyPI wheel
+        let (_, wheel_url) = pypi_latest_wheel(PYPI_DIRECTML_PACKAGE);
+        let wheel_dir = manifest_dir.join("_tmp_directml_wheel");
+        let wheel_zip = manifest_dir.join("_tmp_directml.zip");
+        curl_download(&wheel_url, &wheel_zip);
+        extract_zip(&wheel_zip, &wheel_dir);
+        let _ = fs::remove_file(&wheel_zip);
+
+        // Find DirectML.dll in the extracted wheel (may be in different paths)
+        if let Some(directml_path) = find_file_recursive(&wheel_dir, "DirectML.dll") {
+            fs::copy(&directml_path, lib_dir.join("DirectML.dll"))
+                .expect("Failed to copy DirectML.dll");
+            println!("cargo:warning=Copied DirectML.dll from PyPI wheel");
+        } else {
+            println!("cargo:warning=DirectML.dll not found in PyPI wheel!");
+        }
+        let _ = fs::remove_dir_all(&wheel_dir);
+
+        println!("cargo:warning=ORT DirectML assembled in {}", lib_dir.display());
     }
 
     (lib_dir, version)
@@ -167,7 +222,6 @@ fn pypi_latest_wheel(package: &str) -> (String, String) {
     // a flat onnxruntime/capi/ layout with all native DLLs together.
     let wheel_url = {
         let mut url = None;
-        // Prefer cp313+ wheels for flat layout
         let needles = ["cp313-cp313-win_amd64.whl", "cp314-cp314-win_amd64.whl", "win_amd64.whl"];
         'outer: for needle in &needles {
             let mut search_from = 0;
@@ -229,6 +283,24 @@ fn extract_zip(zip_path: &Path, dest_dir: &Path) {
         .status()
         .expect("Failed to run PowerShell Expand-Archive");
     assert!(status.success(), "Expand-Archive failed");
+}
+
+/// Recursively find a file by name under a directory.
+fn find_file_recursive(dir: &Path, name: &str) -> Option<PathBuf> {
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() && path.file_name().and_then(|f| f.to_str()) == Some(name) {
+                return Some(path);
+            }
+            if path.is_dir() {
+                if let Some(found) = find_file_recursive(&path, name) {
+                    return Some(found);
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Extract the last string from a JSON string array field.

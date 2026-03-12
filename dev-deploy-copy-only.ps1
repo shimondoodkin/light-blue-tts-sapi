@@ -1,3 +1,19 @@
+<#
+.SYNOPSIS
+    Copies built files to the install directory without COM registration.
+.DESCRIPTION
+    Copies the DLL, CLI tool, ONNX Runtime DLLs (DirectML/CUDA/OpenVINO),
+    and models to the install directory. Does NOT register the COM server.
+    Useful for iterative development when COM is already registered.
+
+    Requires admin privileges (writes to Program Files). Run from an elevated terminal, or use:
+
+    powershell -ExecutionPolicy Bypass -Command "Start-Process powershell -Verb RunAs -Wait -ArgumentList '-ExecutionPolicy Bypass -File ""dev-deploy-copy-only.ps1""'"
+
+    To verify deployment:
+    ls "$env:ProgramFiles\LightBlue TTS SAPI\*.dll"
+#>
+
 $ErrorActionPreference = "Stop"
 
 param(

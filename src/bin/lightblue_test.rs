@@ -77,10 +77,12 @@ fn main() {
         eprintln!("=== Run {} — \"{}\" ===", i + 1, phrase);
         let t = Instant::now();
 
-        let (samples, sr) = synth.synthesize(phrase, None, None, false).unwrap_or_else(|e| {
+        let output = synth.synthesize(phrase, None, None, false).unwrap_or_else(|e| {
             eprintln!("Error: {e}");
             std::process::exit(1);
         });
+        let samples = output.samples;
+        let sr = output.sample_rate;
 
         let duration = samples.len() as f64 / sr as f64;
         let elapsed = t.elapsed();

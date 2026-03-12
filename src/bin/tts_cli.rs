@@ -118,10 +118,12 @@ fn cmd_synthesize(args: &[String]) {
     eprintln!("Synthesizing: \"{}\"", text);
     let t_synth = std::time::Instant::now();
 
-    let (samples, sample_rate) = synth.synthesize(&text, style_override.as_deref(), None, false).unwrap_or_else(|e| {
+    let output = synth.synthesize(&text, style_override.as_deref(), None, false).unwrap_or_else(|e| {
         eprintln!("Synthesis error: {e}");
         std::process::exit(1);
     });
+    let samples = output.samples;
+    let sample_rate = output.sample_rate;
 
     eprintln!("Synthesis took {:.2?}", t_synth.elapsed());
     eprintln!(

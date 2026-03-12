@@ -14,7 +14,15 @@ pub mod factory;
 pub mod register;
 
 // Re-exports for convenience.
-pub use engine::{TtsEngine, TtsSynthesizer};
+pub use engine::{
+    BoxErr,
+    SynthesisMetadata,
+    SynthesisOutput,
+    TextSpan,
+    TtsEngine,
+    TtsSynthesizer,
+    WordTiming,
+};
 pub use factory::{set_global_synthesizer, ClassFactory};
 
 use windows::Win32::Foundation::{E_FAIL, E_NOINTERFACE, S_FALSE};
@@ -84,6 +92,22 @@ pub struct SPVSTATE {
 
 /// Action flags returned by `ISpTTSEngineSite::GetActions`.
 pub const SPVES_ABORT: u32 = 0x1; // SPVESACTIONS::SPVES_ABORT
+pub const SPEI_WORD_BOUNDARY: u16 = 5;
+pub const SPET_LPARAM_IS_UNDEFINED: u16 = 0;
+pub const SPFEI_FLAGCHECK: u64 = (1u64 << 30) | (1u64 << 33);
+pub const SPFEI_WORD_BOUNDARY: u64 = (1u64 << SPEI_WORD_BOUNDARY) | SPFEI_FLAGCHECK;
+
+/// Minimal SPEVENT layout used with ISpEventSink::AddEvents.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SPEVENT {
+    pub eEventId: u16,
+    pub elParamType: u16,
+    pub ulStreamNum: u32,
+    pub ullAudioStreamOffset: u64,
+    pub wParam: usize,
+    pub lParam: isize,
+}
 
 // ---- ISpTTSEngineSite ----
 
@@ -96,11 +120,16 @@ pub const SPVES_ABORT: u32 = 0x1; // SPVESACTIONS::SPVES_ABORT
 #[windows_core::interface("9880499B-CCE9-11D2-B503-00C04F797396")]
 pub unsafe trait ISpTTSEngineSite: IUnknown {
     // -- ISpEventSink methods --
-    unsafe fn AddEvents(&self, p_event_array: *const u8, ul_count: u32) -> HRESULT;
+    unsafe fn AddEvents(&self, p_event_array: *const SPEVENT, ul_count: u32) -> HRESULT;
     unsafe fn GetEventInterest(&self, pull_event_interest: *mut u64) -> HRESULT;
     // -- ISpTTSEngineSite methods --
     unsafe fn GetActions(&self) -> u32;
-    unsafe fn Write(&self, p_buff: *const core::ffi::c_void, cb: u32) -> HRESULT;
+    unsafe fn Write(
+        &self,
+        p_buff: *const core::ffi::c_void,
+        cb: u32,
+        pcb_written: *mut u32,
+    ) -> HRESULT;
     unsafe fn GetRate(&self, prate: *mut i32) -> HRESULT;
     unsafe fn GetVolume(&self, pvolume: *mut u16) -> HRESULT;
     unsafe fn GetSkipInfo(

@@ -535,6 +535,7 @@ impl HebrewTTS {
         &mut self,
         text: &str,
         style_json_path: Option<&str>,
+        steps_override: Option<u32>,
         mut callback: impl FnMut(Vec<f32>) -> Result<(), BoxErr>,
     ) -> Result<(), BoxErr> {
         let style = match style_json_path {
@@ -544,13 +545,14 @@ impl HebrewTTS {
                 .clone()
                 .ok_or("No style provided and no default style loaded")?,
         };
+        let effective_steps = steps_override.unwrap_or(self.steps);
 
         let chunks = chunk_text(text, self.text_chunk_len);
         let silence_samples = (self.silence_sec * self.sample_rate as f32) as usize;
         let silence = vec![0.0f32; silence_samples];
 
         for (i, chunk) in chunks.iter().enumerate() {
-            let mut audio = self.infer_chunk(chunk, &style, self.steps)?;
+            let mut audio = self.infer_chunk(chunk, &style, effective_steps)?;
 
             // Apply fade only to first/last overall chunks
             if i == 0 {

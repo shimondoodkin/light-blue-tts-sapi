@@ -3,13 +3,21 @@
 .SYNOPSIS
     Installs LightBlue TTS SAPI as a SAPI 5 voice on Windows.
 .DESCRIPTION
-    Copies the built DLL, ONNX models, ONNX Runtime, and Phonikud model
-    to a permanent location and registers the COM server.
+    Copies the built DLL, ONNX models, ONNX Runtime (DirectML/CUDA/OpenVINO),
+    and Phonikud model to a permanent location and registers the COM server.
+
+    Requires admin privileges. Run from an elevated terminal, or use:
+
+    powershell -ExecutionPolicy Bypass -Command "Start-Process powershell -Verb RunAs -Wait -ArgumentList '-ExecutionPolicy Bypass -File ""dev-deploy-sapi.ps1""'"
+
+    To verify deployment:
+    ls "$env:ProgramFiles\LightBlue TTS SAPI\*.dll"
 #>
 
 param(
     [string]$BuildProfile = "release",
-    [string]$InstallDir   = "$env:ProgramFiles\LightBlue TTS SAPI"
+    [string]$InstallDir   = "$env:ProgramFiles\LightBlue TTS SAPI",
+    [switch]$PauseAtEnd
 )
 
 $ErrorActionPreference = "Stop"
@@ -93,3 +101,8 @@ if ($regResult.ExitCode -ne 0) {
 Write-Host ""
 Write-Host "LightBlue TTS SAPI installed successfully!" -ForegroundColor Green
 Write-Host "The voice should now appear in Windows Speech settings and any SAPI 5 application."
+
+if ($PauseAtEnd) {
+    Write-Host ""
+    Read-Host "Deployment finished. Press Enter to close"
+}

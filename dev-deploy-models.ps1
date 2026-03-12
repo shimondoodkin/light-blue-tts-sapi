@@ -5,6 +5,10 @@
 .DESCRIPTION
     Copies all model files (ONNX, voices, tokenizer, etc.) to the installation folder.
     Useful during development to update models without re-running the full installer.
+
+    Requires admin privileges. Run from an elevated terminal, or use:
+
+    powershell -ExecutionPolicy Bypass -Command "Start-Process powershell -Verb RunAs -Wait -ArgumentList '-ExecutionPolicy Bypass -File ""dev-deploy-models.ps1""'"
 #>
 
 param(

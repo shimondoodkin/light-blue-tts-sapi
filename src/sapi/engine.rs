@@ -10,11 +10,46 @@ use windows::Win32::Foundation::{E_FAIL, E_POINTER, S_OK};
 use windows_core::{GUID, HRESULT, IUnknown_Vtbl, Interface};
 
 use super::{ISpTTSEngine, ISpTTSEngine_Impl, ISpTTSEngineSite, ISpObjectWithToken, ISpObjectWithToken_Impl};
-use super::{SPVTEXTFRAG, SPVES_ABORT};
+use super::{
+    SPEVENT, SPEI_WORD_BOUNDARY, SPET_LPARAM_IS_UNDEFINED, SPFEI_WORD_BOUNDARY, SPVTEXTFRAG,
+    SPVES_ABORT,
+};
 
 // ---------------------------------------------------------------------------
 // TtsSynthesizer trait — the bridge to the actual neural TTS pipeline
 // ---------------------------------------------------------------------------
+
+pub type BoxErr = Box<dyn std::error::Error + Send + Sync>;
+
+#[derive(Debug, Clone, Copy)]
+pub struct TextSpan {
+    pub start: usize,
+    pub end: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct WordTiming {
+    pub text: String,
+    pub normalized_span: TextSpan,
+    pub original_span: Option<TextSpan>,
+    pub start_sec: f32,
+    pub end_sec: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct SynthesisMetadata {
+    pub original_text: String,
+    pub normalized_text: String,
+    pub combined_ipa: String,
+    pub words: Vec<WordTiming>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SynthesisOutput {
+    pub samples: Vec<f32>,
+    pub sample_rate: u32,
+    pub metadata: SynthesisMetadata,
+}
 
 /// Trait that the neural TTS pipeline must implement.
 ///
@@ -22,7 +57,26 @@ use super::{SPVTEXTFRAG, SPVES_ABORT};
 /// (to select male/female voice), optional step count, and a GPU flag,
 /// and returns f32 audio samples + sample rate.
 pub trait TtsSynthesizer: Send + Sync {
-    fn synthesize(&self, text: &str, style_json: Option<&str>, steps: Option<u32>, use_gpu: bool) -> Result<(Vec<f32>, u32), Box<dyn std::error::Error>>;
+    fn synthesize(
+        &self,
+        text: &str,
+        style_json: Option<&str>,
+        steps: Option<u32>,
+        use_gpu: bool,
+    ) -> Result<SynthesisOutput, BoxErr>;
+
+    fn synthesize_stream(
+        &self,
+        text: &str,
+        style_json: Option<&str>,
+        steps: Option<u32>,
+        use_gpu: bool,
+        sink: &mut dyn FnMut(&[f32]) -> Result<(), BoxErr>,
+    ) -> Result<SynthesisMetadata, BoxErr> {
+        let output = self.synthesize(text, style_json, steps, use_gpu)?;
+        sink(&output.samples)?;
+        Ok(output.metadata)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -32,9 +86,24 @@ pub trait TtsSynthesizer: Send + Sync {
 struct StubSynthesizer;
 
 impl TtsSynthesizer for StubSynthesizer {
-    fn synthesize(&self, _text: &str, _style_json: Option<&str>, _steps: Option<u32>, _use_gpu: bool) -> Result<(Vec<f32>, u32), Box<dyn std::error::Error>> {
+    fn synthesize(
+        &self,
+        text: &str,
+        _style_json: Option<&str>,
+        _steps: Option<u32>,
+        _use_gpu: bool,
+    ) -> Result<SynthesisOutput, BoxErr> {
         // 0.5 seconds of silence at 44100 Hz
-        Ok((vec![0.0f32; 22050], 44100))
+        Ok(SynthesisOutput {
+            samples: vec![0.0f32; 22050],
+            sample_rate: 44100,
+            metadata: SynthesisMetadata {
+                original_text: text.to_string(),
+                normalized_text: text.to_string(),
+                combined_ipa: String::new(),
+                words: Vec::new(),
+            },
+        })
     }
 }
 
@@ -242,44 +311,64 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
         let style_path = self.style_json_path.lock().unwrap().clone();
         let steps = *self.steps.lock().unwrap();
         let use_gpu = *self.use_gpu.lock().unwrap();
+        let wants_word_boundary = site_wants_word_boundary(site);
         let synth_start = std::time::Instant::now();
-        let (samples_f32, sample_rate) = match self.synthesizer.synthesize(&text, style_path.as_deref(), steps, use_gpu) {
-            Ok(v) => v,
-            Err(e) => {
-                log::error!("Speak: synthesis failed: {e}");
-                return E_FAIL;
-            }
-        };
-        let synth_elapsed = synth_start.elapsed();
-        log::info!("Speak: synthesis took {synth_elapsed:?} ({} samples)", samples_f32.len());
-        if sample_rate != SAMPLE_RATE {
-            log::warn!(
-                "Speak: synthesizer sample_rate={} but output format is {}",
-                sample_rate,
-                SAMPLE_RATE
-            );
-        }
-
-        let mut pcm = Vec::with_capacity(samples_f32.len() * 2);
-        for s in samples_f32 {
-            let clamped = s.clamp(-1.0, 1.0);
-            let val = (clamped * i16::MAX as f32) as i16;
-            pcm.extend_from_slice(&val.to_le_bytes());
-        }
-
-        for chunk in pcm.chunks(CHUNK_BYTES) {
-            let actions = site.GetActions();
-            if (actions & SPVES_ABORT) != 0 {
-                log::debug!("Speak aborted by caller");
-                break;
-            }
-
-            let hr = site.Write(chunk.as_ptr() as *const _, chunk.len() as u32);
-            if hr.is_err() {
+        let (total_samples, metadata) = if wants_word_boundary {
+            let output = match self
+                .synthesizer
+                .synthesize(&text, style_path.as_deref(), steps, use_gpu)
+            {
+                Ok(output) => output,
+                Err(e) => {
+                    log::error!("Speak: synthesis failed: {e}");
+                    return E_FAIL;
+                }
+            };
+            emit_word_boundary_events(site, &output.metadata);
+            let mut aborted = false;
+            if let Err(hr) = write_samples_to_site(site, &output.samples, &mut aborted) {
                 log::error!("Speak: site.Write failed: {hr:?}");
                 return hr;
             }
-        }
+            if aborted {
+                log::debug!("Speak aborted by caller");
+                return S_OK;
+            }
+            (output.samples.len(), output.metadata)
+        } else {
+            let mut total_samples = 0usize;
+            let mut aborted = false;
+            let metadata = match self.synthesizer.synthesize_stream(
+                &text,
+                style_path.as_deref(),
+                steps,
+                use_gpu,
+                &mut |samples_f32| {
+                    total_samples += samples_f32.len();
+                    write_samples_to_site(site, samples_f32, &mut aborted)
+                        .map_err(|hr| format!("site.Write failed: {hr:?}").into())
+                },
+            ) {
+                Ok(metadata) => metadata,
+                Err(e) => {
+                    if aborted {
+                        log::debug!("Speak aborted by caller");
+                        return S_OK;
+                    }
+                    log::error!("Speak: synthesis failed: {e}");
+                    return E_FAIL;
+                }
+            };
+            (total_samples, metadata)
+        };
+        let synth_elapsed = synth_start.elapsed();
+        log::info!("Speak: synthesis took {synth_elapsed:?} ({} samples)", total_samples);
+        log::info!(
+            "Speak: normalized_len={} ipa_len={} words={}",
+            metadata.normalized_text.chars().count(),
+            metadata.combined_ipa.chars().count(),
+            metadata.words.len()
+        );
 
         log::info!("Speak: total elapsed {:?}", speak_start.elapsed());
         S_OK
@@ -350,6 +439,127 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
 
         S_OK
     }
+}
+
+unsafe fn write_samples_to_site(
+    site: &ISpTTSEngineSite,
+    samples_f32: &[f32],
+    aborted: &mut bool,
+) -> Result<(), HRESULT> {
+    let mut pcm = Vec::with_capacity(samples_f32.len() * 2);
+    for &s in samples_f32 {
+        let clamped = s.clamp(-1.0, 1.0);
+        let val = (clamped * i16::MAX as f32) as i16;
+        pcm.extend_from_slice(&val.to_le_bytes());
+    }
+
+    for chunk in pcm.chunks(CHUNK_BYTES) {
+        let actions = site.GetActions();
+        if (actions & SPVES_ABORT) != 0 {
+            *aborted = true;
+            break;
+        }
+
+        let mut written = 0u32;
+        let hr = site.Write(chunk.as_ptr() as *const _, chunk.len() as u32, &mut written);
+        if hr.is_err() {
+            return Err(hr);
+        }
+        if written != chunk.len() as u32 {
+            log::warn!(
+                "Speak: site.Write wrote {} of {} bytes",
+                written,
+                chunk.len()
+            );
+        }
+    }
+
+    Ok(())
+}
+
+unsafe fn emit_word_boundary_events(site: &ISpTTSEngineSite, metadata: &SynthesisMetadata) {
+    if !site_wants_word_boundary(site) {
+        return;
+    }
+
+    let mut events = Vec::with_capacity(metadata.words.len());
+    for word in &metadata.words {
+        let Some(original_span) = word.original_span else {
+            continue;
+        };
+        let (char_pos, word_len, adjusted) = utf16_span_metrics(
+            &metadata.original_text,
+            original_span.start,
+            original_span.end,
+        );
+        if adjusted {
+            log::debug!(
+                "Speak: adjusted invalid span {:?} for original_text len={}",
+                original_span,
+                metadata.original_text.len()
+            );
+        }
+        if word_len == 0 {
+            continue;
+        }
+
+        let offset_bytes = ((word.start_sec.max(0.0) * AVG_BYTES_PER_SEC as f32).round() as u64)
+            .min(u64::MAX);
+        log::info!(
+            "Speak: word event text={:?} stream_offset={} char_pos={} len={} original_span={:?}",
+            word.text,
+            offset_bytes,
+            char_pos,
+            word_len,
+            original_span,
+        );
+        events.push(SPEVENT {
+            eEventId: SPEI_WORD_BOUNDARY,
+            elParamType: SPET_LPARAM_IS_UNDEFINED,
+            ulStreamNum: 1,
+            ullAudioStreamOffset: offset_bytes,
+            // SpVoice automation surfaces OnWord(CharacterPosition, Length)
+            // from lParam and wParam respectively for SPEI_WORD_BOUNDARY.
+            wParam: word_len,
+            lParam: char_pos as isize,
+        });
+    }
+
+    if events.is_empty() {
+        return;
+    }
+
+    let hr = site.AddEvents(events.as_ptr(), events.len() as u32);
+    if hr.is_err() {
+        log::warn!("Speak: AddEvents for word boundaries failed: {hr:?}");
+    }
+}
+
+unsafe fn site_wants_word_boundary(site: &ISpTTSEngineSite) -> bool {
+    let mut interest = 0u64;
+    let hr = site.GetEventInterest(&mut interest);
+    hr.is_ok() && (interest & SPFEI_WORD_BOUNDARY) == SPFEI_WORD_BOUNDARY
+}
+
+fn utf16_len(text: &str) -> usize {
+    text.encode_utf16().count()
+}
+
+fn utf16_span_metrics(text: &str, start: usize, end: usize) -> (usize, usize, bool) {
+    let start_b = clamp_to_char_boundary(text, start);
+    let end_b = clamp_to_char_boundary(text, end.max(start_b));
+    let adjusted = start_b != start || end_b != end;
+    let char_pos = utf16_len(&text[..start_b]);
+    let word_len = utf16_len(&text[start_b..end_b]);
+    (char_pos, word_len, adjusted)
+}
+
+fn clamp_to_char_boundary(text: &str, idx: usize) -> usize {
+    let mut i = idx.min(text.len());
+    while i > 0 && !text.is_char_boundary(i) {
+        i -= 1;
+    }
+    i
 }
 
 // ---------------------------------------------------------------------------
