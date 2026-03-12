@@ -32,7 +32,7 @@ del _warmup_voice, _voices
 
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-    QTextEdit, QPushButton, QLabel, QComboBox,
+    QTextEdit, QPushButton, QLabel, QComboBox, QSizePolicy,
 )
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QFont
@@ -102,6 +102,8 @@ class TTSHighlightApp(QWidget):
         self.display_label.setLayoutDirection(Qt.RightToLeft)
         self.display_label.setFont(QFont("Segoe UI", 18))
         self.display_label.setTextFormat(Qt.RichText)
+        sp = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.display_label.setSizePolicy(sp)
         self.display_label.setStyleSheet(
             "QLabel { background: white; border: 1px solid #ccc; "
             "padding: 16px; border-radius: 6px; }"
