@@ -84,13 +84,30 @@ fn create_lazy_synthesizer() -> Result<Arc<bridge::LazyLightBlueSynthesizer>, Bo
         log::info!("Set ORT_DYLIB_PATH to {}", ort_dll.display());
     }
 
-    // Add the DLL directory to PATH so OpenVINO/CUDA provider DLLs next to our
-    // DLL can be found (SAPI hosts like svchost.exe won't have our dir on PATH).
+    // Add the DLL directory to the DLL search path so that dependencies of
+    // onnxruntime.dll (e.g. onnxruntime_providers_shared.dll, DirectML.dll,
+    // OpenVINO DLLs) can be found when loaded via LoadLibraryW.
+    // SetDllDirectoryW is needed because SAPI hosts (svchost.exe etc.) won't
+    // have our install dir in their search path, and modifying PATH env var
+    // alone does NOT affect LoadLibraryW on modern Windows.
+    {
+        use windows::core::HSTRING;
+        use windows::Win32::System::LibraryLoader::{SetDllDirectoryW, AddDllDirectory};
+        let dir_hstr = HSTRING::from(dll_dir.as_os_str());
+        unsafe {
+            // SetDllDirectoryW adds to the DLL search order
+            if SetDllDirectoryW(&dir_hstr).is_ok() {
+                log::info!("SetDllDirectoryW to {}", dll_dir.display());
+            }
+            // AddDllDirectory is also used by LOAD_LIBRARY_SEARCH_USER_DIRS
+            let _ = AddDllDirectory(&dir_hstr);
+        }
+    }
+    // Also add to PATH for any subprocess or SearchPath usage
     if let Ok(current_path) = std::env::var("PATH") {
         let dll_dir_str = dll_dir.to_string_lossy();
         if !current_path.split(';').any(|d| d == dll_dir_str.as_ref()) {
             std::env::set_var("PATH", format!("{};{}", dll_dir.display(), current_path));
-            log::info!("Added DLL dir to PATH: {}", dll_dir.display());
         }
     }
 

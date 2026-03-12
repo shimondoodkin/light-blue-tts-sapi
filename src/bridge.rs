@@ -71,10 +71,34 @@ impl LightBlueSynthesizer {
                 log::info!("Phonikud loaded in {:?}", t0.elapsed());
                 r
             });
-            (h_tts.join().unwrap(), h_pk.join().unwrap())
+            let tts_join = h_tts.join().map_err(|e| {
+                let msg = if let Some(s) = e.downcast_ref::<String>() {
+                    s.clone()
+                } else if let Some(s) = e.downcast_ref::<&str>() {
+                    s.to_string()
+                } else {
+                    "TTS model loading panicked".to_string()
+                };
+                log::error!("TTS thread panicked: {msg}");
+                msg
+            });
+            let pk_join = h_pk.join().map_err(|e| {
+                let msg = if let Some(s) = e.downcast_ref::<String>() {
+                    s.clone()
+                } else if let Some(s) = e.downcast_ref::<&str>() {
+                    s.to_string()
+                } else {
+                    "Phonikud loading panicked".to_string()
+                };
+                log::error!("Phonikud thread panicked: {msg}");
+                msg
+            });
+            (tts_join, pk_join)
         });
-        let tts = tts_result.map_err(|e| -> Box<dyn std::error::Error> { e })?;
-        let phonikud = phonikud_result?;
+        let tts_inner = tts_result.map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+        let tts = tts_inner.map_err(|e| -> Box<dyn std::error::Error> { e })?;
+        let phonikud_inner = phonikud_result.map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+        let phonikud = phonikud_inner?;
         log::info!("All models loaded in {:?}", t_all.elapsed());
         Ok(Self {
             tts: Mutex::new(tts),

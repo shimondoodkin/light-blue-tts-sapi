@@ -172,6 +172,40 @@ impl ISpObjectWithToken_Impl for TtsEngine_Impl {
         &self,
         ptoken: *mut core::ffi::c_void,
     ) -> HRESULT {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.set_object_token_inner(ptoken)
+        }));
+        match result {
+            Ok(hr) => hr,
+            Err(_) => {
+                log::error!("SetObjectToken panicked");
+                E_FAIL
+            }
+        }
+    }
+
+    unsafe fn GetObjectToken(
+        &self,
+        pptoken: *mut *mut core::ffi::c_void,
+    ) -> HRESULT {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.get_object_token_inner(pptoken)
+        }));
+        match result {
+            Ok(hr) => hr,
+            Err(_) => {
+                log::error!("GetObjectToken panicked");
+                E_FAIL
+            }
+        }
+    }
+}
+
+impl TtsEngine_Impl {
+    unsafe fn set_object_token_inner(
+        &self,
+        ptoken: *mut core::ffi::c_void,
+    ) -> HRESULT {
         if ptoken.is_null() {
             log::error!("SetObjectToken received null token");
             return E_POINTER;
@@ -211,7 +245,7 @@ impl ISpObjectWithToken_Impl for TtsEngine_Impl {
         S_OK
     }
 
-    unsafe fn GetObjectToken(
+    unsafe fn get_object_token_inner(
         &self,
         pptoken: *mut *mut core::ffi::c_void,
     ) -> HRESULT {
@@ -280,6 +314,67 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
         _dw_speak_flags: u32,
         _rguid_format_id: *const GUID,
         _p_wave_format_ex: *const u8,
+        p_text_frag_list: *const SPVTEXTFRAG,
+        p_output_site: *mut core::ffi::c_void,
+    ) -> HRESULT {
+        // Catch any panic to prevent aborting the host process.
+        // COM callbacks are `extern "system"` — unwinding across them is UB and
+        // triggers "panic in a function that cannot unwind" which calls abort().
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.speak_inner(p_text_frag_list, p_output_site)
+        }));
+        match result {
+            Ok(hr) => hr,
+            Err(panic) => {
+                let msg = if let Some(s) = panic.downcast_ref::<String>() {
+                    s.clone()
+                } else if let Some(s) = panic.downcast_ref::<&str>() {
+                    s.to_string()
+                } else {
+                    "unknown panic".to_string()
+                };
+                log::error!("Speak panicked: {msg}");
+                E_FAIL
+            }
+        }
+    }
+
+    unsafe fn GetOutputFormat(
+        &self,
+        _p_target_fmt_id: *const GUID,
+        _p_target_wave_format_ex: *const u8,
+        p_output_format_id: *mut GUID,
+        pp_comem_output_wave_format_ex: *mut *mut u8,
+    ) -> HRESULT {
+        // Catch any panic to prevent aborting the host process.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.get_output_format_inner(
+                _p_target_fmt_id,
+                _p_target_wave_format_ex,
+                p_output_format_id,
+                pp_comem_output_wave_format_ex,
+            )
+        }));
+        match result {
+            Ok(hr) => hr,
+            Err(panic) => {
+                let msg = if let Some(s) = panic.downcast_ref::<String>() {
+                    s.clone()
+                } else if let Some(s) = panic.downcast_ref::<&str>() {
+                    s.to_string()
+                } else {
+                    "unknown panic".to_string()
+                };
+                log::error!("GetOutputFormat panicked: {msg}");
+                E_FAIL
+            }
+        }
+    }
+}
+
+impl TtsEngine_Impl {
+    unsafe fn speak_inner(
+        &self,
         p_text_frag_list: *const SPVTEXTFRAG,
         p_output_site: *mut core::ffi::c_void,
     ) -> HRESULT {
@@ -374,7 +469,7 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
         S_OK
     }
 
-    unsafe fn GetOutputFormat(
+    unsafe fn get_output_format_inner(
         &self,
         _p_target_fmt_id: *const GUID,
         _p_target_wave_format_ex: *const u8,

@@ -168,6 +168,92 @@ fn add_openvino_to_dll_search_path() {
     }
 }
 
+/// Pre-load onnxruntime.dll using LoadLibraryExW with LOAD_WITH_ALTERED_SEARCH_PATH.
+///
+/// This ensures that all implicit dependencies (vcruntime140.dll, msvcp140.dll, etc.)
+/// are resolved from the DLL's own directory first, rather than from whatever is on
+/// PATH. This prevents conflicts when the host process (e.g. Python with PyQt5) has
+/// older/incompatible versions of these runtime DLLs on its search path.
+///
+/// The DLL remains loaded (reference count increases). When `ort` later calls
+/// `LoadLibraryExW(path, NULL, 0)`, Windows returns the already-loaded module.
+fn preload_ort_dll(dll_path: &std::path::Path) {
+    if !dll_path.is_absolute() || !dll_path.exists() {
+        return;
+    }
+
+    use windows::core::HSTRING;
+    use windows::Win32::System::LibraryLoader::LoadLibraryExW;
+    use windows::Win32::System::LibraryLoader::LOAD_LIBRARY_FLAGS;
+
+    // First, force-load the correct VC++ runtime DLLs from system32.
+    // Some host processes (e.g. Python with PyQt5) load OLDER/bundled versions
+    // of msvcp140.dll from their own directories. If those are already loaded,
+    // onnxruntime.dll's DllMain will fail (error 1114) because of version mismatch.
+    // Loading from system32 explicitly ensures we have the system version.
+    const LOAD_LIBRARY_SEARCH_SYSTEM32: u32 = 0x00000800;
+    let sys_flags = LOAD_LIBRARY_FLAGS(LOAD_LIBRARY_SEARCH_SYSTEM32);
+    for rt_dll in ["msvcp140.dll", "msvcp140_1.dll", "vcruntime140.dll", "vcruntime140_1.dll", "concrt140.dll"] {
+        let h_rt = HSTRING::from(rt_dll);
+        let _ = unsafe { LoadLibraryExW(&h_rt, None, sys_flags) };
+    }
+
+    // Now load onnxruntime.dll with LOAD_WITH_ALTERED_SEARCH_PATH so its
+    // dependencies are resolved from ITS directory first.
+    const LOAD_WITH_ALTERED_SEARCH_PATH: u32 = 0x00000008;
+    let h = HSTRING::from(dll_path.as_os_str());
+    let flags = LOAD_LIBRARY_FLAGS(LOAD_WITH_ALTERED_SEARCH_PATH);
+    let result = unsafe { LoadLibraryExW(&h, None, flags) };
+    match result {
+        Ok(handle) => {
+            log::info!(
+                "Pre-loaded onnxruntime.dll with LOAD_WITH_ALTERED_SEARCH_PATH (handle={:?})",
+                handle
+            );
+            // Intentionally leak the handle — we want the DLL to stay loaded.
+        }
+        Err(e) => {
+            let win_err = unsafe { windows::Win32::Foundation::GetLastError() };
+            log::error!(
+                "Failed to pre-load onnxruntime.dll: {} (Win32 error {})",
+                e, win_err.0
+            );
+        }
+    }
+}
+
+/// Log diagnostic info about the ORT DLL environment (file existence, PATH).
+fn diagnose_dll_load(dll_path: &std::path::Path) {
+    let dll_str = dll_path.to_string_lossy();
+
+    // Check the file exists and its size
+    match std::fs::metadata(dll_path) {
+        Ok(meta) => log::info!("DLL diagnostic: {} size={} bytes", dll_str, meta.len()),
+        Err(e) => {
+            log::error!("DLL diagnostic: cannot stat {}: {e}", dll_str);
+            return;
+        }
+    }
+
+    // Log PATH for debugging
+    if let Ok(path_var) = std::env::var("PATH") {
+        let dirs: Vec<&str> = path_var.split(';').take(20).collect();
+        log::info!("DLL diagnostic: PATH (first 20 dirs): {:?}", dirs);
+    }
+
+    // Check companion DLLs exist (don't load them — just file checks)
+    if let Some(parent) = dll_path.parent() {
+        for dep in ["onnxruntime_providers_shared.dll", "DirectML.dll"] {
+            let dep_path = parent.join(dep);
+            if dep_path.exists() {
+                log::info!("DLL diagnostic: {} found", dep);
+            } else {
+                log::info!("DLL diagnostic: {} not present", dep);
+            }
+        }
+    }
+}
+
 fn init_ort() -> Result<(), BoxErr> {
     init_ort_with_dir(None)
 }
@@ -196,14 +282,46 @@ fn init_ort_with_dir(dll_dir: Option<&Path>) -> Result<(), BoxErr> {
         let lib_path = candidates.into_iter().next()
             .unwrap_or_else(|| std::path::PathBuf::from("onnxruntime"));
         log::info!("Loading ORT from: {}", lib_path.display());
-        match ort::init_from(lib_path.to_string_lossy().as_ref()) {
-            Ok(builder) => {
+
+        // Log diagnostic info (file existence, PATH, etc.)
+        diagnose_dll_load(&lib_path);
+
+        // Pre-load onnxruntime.dll with LOAD_WITH_ALTERED_SEARCH_PATH so its
+        // dependencies are resolved from ITS directory, not from wherever the
+        // host process has on PATH (e.g. PyQt5/Qt5/bin ships older vcruntime).
+        preload_ort_dll(&lib_path);
+
+        // Wrap ort::init_from in catch_unwind because the ort crate internally
+        // panics (via expect()) when LoadLibraryExW fails for onnxruntime.dll.
+        // Without this, the panic would poison the ORT_INIT Once and cause
+        // cascading panics in all subsequent calls, ultimately crashing the
+        // host application (e.g. via "panic in a function that cannot unwind"
+        // in extern "system" COM callbacks).
+        let init_result = std::panic::catch_unwind(|| {
+            ort::init_from(lib_path.to_string_lossy().as_ref())
+        });
+
+        match init_result {
+            Ok(Ok(builder)) => {
                 let _ = builder.with_name("lightblue").commit();
                 let available = query_ort_available_providers();
                 log::info!("ORT available providers: {:?}", available);
             }
-            Err(e) => unsafe {
-                ORT_INIT_ERROR = Some(format!("ORT init failed: {}", e));
+            Ok(Err(e)) => unsafe {
+                let msg = format!("ORT init failed: {}", e);
+                log::error!("{msg}");
+                ORT_INIT_ERROR = Some(msg);
+            },
+            Err(panic_payload) => unsafe {
+                let msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
+                    format!("ORT init panicked: {s}")
+                } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
+                    format!("ORT init panicked: {s}")
+                } else {
+                    "ORT init panicked (unknown payload)".to_string()
+                };
+                log::error!("{msg}");
+                ORT_INIT_ERROR = Some(msg);
             },
         }
     });
@@ -422,7 +540,28 @@ impl HebrewTTS {
                     log::info!("  length_pred_style loaded in {:?}", t0.elapsed());
                     r
                 });
-                (h1.join().unwrap(), h2.join().unwrap(), h3.join().unwrap(), h4.join().unwrap())
+                let join_result = |r: std::thread::Result<Result<Session, BoxErr>>| -> Result<Session, BoxErr> {
+                    match r {
+                        Ok(inner) => inner,
+                        Err(panic) => {
+                            let msg = if let Some(s) = panic.downcast_ref::<String>() {
+                                format!("ONNX session loading panicked: {s}")
+                            } else if let Some(s) = panic.downcast_ref::<&str>() {
+                                format!("ONNX session loading panicked: {s}")
+                            } else {
+                                "ONNX session loading panicked".to_string()
+                            };
+                            log::error!("{msg}");
+                            Err(msg.into())
+                        }
+                    }
+                };
+                (
+                    join_result(h1.join()),
+                    join_result(h2.join()),
+                    join_result(h3.join()),
+                    join_result(h4.join()),
+                )
             })
         };
         let text_encoder = text_encoder?;
@@ -906,6 +1045,20 @@ fn load_session_cpu(path: &Path, threads: usize) -> Result<Session, BoxErr> {
 /// Query the ORT runtime for which execution providers are actually available
 /// in the loaded onnxruntime.dll. This calls the C API directly.
 fn query_ort_available_providers() -> Vec<String> {
+    // Wrap in catch_unwind because ort::api() panics if ORT failed to load.
+    let result = std::panic::catch_unwind(|| {
+        query_ort_available_providers_inner()
+    });
+    match result {
+        Ok(providers) => providers,
+        Err(_) => {
+            log::error!("query_ort_available_providers panicked");
+            vec![]
+        }
+    }
+}
+
+fn query_ort_available_providers_inner() -> Vec<String> {
     unsafe {
         let api = ort::api();
         let mut providers: *mut *mut std::ffi::c_char = std::ptr::null_mut();

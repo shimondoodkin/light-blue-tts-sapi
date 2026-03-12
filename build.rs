@@ -9,8 +9,11 @@ const ORT_CUDA_VERSION: &str = "1.23.2";
 /// Intel OpenVINO ORT NuGet package.
 const ORT_OPENVINO_PACKAGE: &str = "intel.ml.onnxruntime.openvino";
 
-/// PyPI package name for DirectML DLL extraction.
-const PYPI_DIRECTML_PACKAGE: &str = "onnxruntime-directml";
+/// NuGet package for DirectML-enabled ORT.
+const NUGET_ORT_DIRECTML_PACKAGE: &str = "microsoft.ml.onnxruntime.directml";
+
+/// NuGet package for DirectML redistributable DLL.
+const NUGET_DIRECTML_PACKAGE: &str = "microsoft.ai.directml";
 
 /// NuGet v3 flat-container base URL for version discovery.
 const NUGET_FLAT_BASE: &str = "https://api.nuget.org/v3-flatcontainer";
@@ -55,78 +58,89 @@ fn main() {
 
 // ---------------------------------------------------------------------------
 // DirectML download (default)
-//   - onnxruntime.dll + onnxruntime_providers_shared.dll from GitHub releases
-//   - DirectML.dll from PyPI onnxruntime-directml wheel
+//   - onnxruntime.dll (with DirectML EP) from Microsoft.ML.OnnxRuntime.DirectML NuGet
+//   - DirectML.dll from Microsoft.AI.DirectML NuGet
 // ---------------------------------------------------------------------------
 
-/// Get the latest ORT release version from GitHub API.
-fn github_latest_ort_version() -> String {
-    let json_str = curl_fetch_string("https://api.github.com/repos/microsoft/onnxruntime/releases/latest");
-
-    // Extract "tag_name":"vX.Y.Z"
-    let marker = "\"tag_name\":";
-    let pos = json_str.find(marker).expect("No tag_name in GitHub API response");
-    let after = &json_str[pos + marker.len()..];
-    let after = after.trim_start();
-    assert!(after.starts_with('"'), "Expected quoted tag_name");
-    let start = 1;
-    let end = after[start..].find('"').expect("Unterminated tag_name") + start;
-    let tag = &after[start..end];
-    // Strip leading 'v' if present
-    tag.strip_prefix('v').unwrap_or(tag).to_string()
-}
-
-/// Download or reuse ORT CPU from GitHub + DirectML.dll from PyPI.
-/// Returns (lib_dir, version_string).
+/// Download or reuse ORT DirectML from NuGet packages.
+///
+/// Sources:
+///   - `Microsoft.ML.OnnxRuntime.DirectML` NuGet → onnxruntime.dll with DirectML EP compiled in
+///   - `Microsoft.AI.DirectML` NuGet → DirectML.dll redistributable
+///
+/// The previous approach downloaded the CPU-only onnxruntime.dll from GitHub releases
+/// and placed DirectML.dll next to it, but that build doesn't have the DirectML
+/// execution provider — DirectML would never actually activate.
 fn download_or_reuse_directml(manifest_dir: &Path) -> (PathBuf, String) {
-    let version = github_latest_ort_version();
+    let version = nuget_latest_version(NUGET_ORT_DIRECTML_PACKAGE);
     let folder = format!("ort-directml-{}", version);
     let lib_dir = manifest_dir.join(&folder).join("lib");
 
     if !lib_dir.exists() {
-        println!("cargo:warning=Downloading ORT v{} from GitHub + DirectML from PyPI...", version);
+        println!("cargo:warning=Downloading ORT DirectML v{} from NuGet...", version);
         let _ = fs::create_dir_all(&lib_dir);
 
-        // 1. Download ORT CPU from GitHub releases
-        let cpu_folder = format!("onnxruntime-win-x64-{}", version);
-        let cpu_dir = manifest_dir.join(&cpu_folder);
-        let cpu_lib_dir = cpu_dir.join("lib");
-        if !cpu_lib_dir.exists() {
-            let url = format!(
-                "https://github.com/microsoft/onnxruntime/releases/download/v{ver}/onnxruntime-win-x64-{ver}.zip",
-                ver = version,
-            );
-            let zip_path = manifest_dir.join(format!("{}.zip", cpu_folder));
-            curl_download(&url, &zip_path);
-            extract_zip(&zip_path, manifest_dir);
-            let _ = fs::remove_file(&zip_path);
-        }
+        // 1. Download ORT DirectML NuGet package
+        let ort_nupkg_url = format!(
+            "https://globalcdn.nuget.org/packages/{pkg}.{ver}.nupkg?packageVersion={ver}",
+            pkg = NUGET_ORT_DIRECTML_PACKAGE,
+            ver = version,
+        );
+        let ort_dir = manifest_dir.join(format!("_tmp_ort_directml_{}", version));
+        let ort_zip = manifest_dir.join(format!("_tmp_ort_directml_{}.zip", version));
+        curl_download(&ort_nupkg_url, &ort_zip);
+        extract_zip(&ort_zip, &ort_dir);
+        let _ = fs::remove_file(&ort_zip);
 
-        // Copy onnxruntime.dll and onnxruntime_providers_shared.dll
+        // Copy onnxruntime.dll and onnxruntime_providers_shared.dll from NuGet
+        let native_dir = ort_dir
+            .join("runtimes")
+            .join("win-x64")
+            .join("native");
         for dll in ["onnxruntime.dll", "onnxruntime_providers_shared.dll"] {
-            let src = cpu_lib_dir.join(dll);
+            let src = native_dir.join(dll);
             if src.exists() {
                 fs::copy(&src, lib_dir.join(dll)).expect(&format!("Failed to copy {}", dll));
+                println!("cargo:warning=Copied {} from NuGet ORT DirectML", dll);
             }
         }
-
-        // 2. Download DirectML.dll from PyPI wheel
-        let (_, wheel_url) = pypi_latest_wheel(PYPI_DIRECTML_PACKAGE);
-        let wheel_dir = manifest_dir.join("_tmp_directml_wheel");
-        let wheel_zip = manifest_dir.join("_tmp_directml.zip");
-        curl_download(&wheel_url, &wheel_zip);
-        extract_zip(&wheel_zip, &wheel_dir);
-        let _ = fs::remove_file(&wheel_zip);
-
-        // Find DirectML.dll in the extracted wheel (may be in different paths)
-        if let Some(directml_path) = find_file_recursive(&wheel_dir, "DirectML.dll") {
-            fs::copy(&directml_path, lib_dir.join("DirectML.dll"))
-                .expect("Failed to copy DirectML.dll");
-            println!("cargo:warning=Copied DirectML.dll from PyPI wheel");
-        } else {
-            println!("cargo:warning=DirectML.dll not found in PyPI wheel!");
+        // Also copy the .lib if present (for linking)
+        let lib_file = native_dir.join("onnxruntime.lib");
+        if lib_file.exists() {
+            let _ = fs::copy(&lib_file, lib_dir.join("onnxruntime.lib"));
         }
-        let _ = fs::remove_dir_all(&wheel_dir);
+        let _ = fs::remove_dir_all(&ort_dir);
+
+        // 2. Download DirectML.dll from Microsoft.AI.DirectML NuGet
+        let dml_version = nuget_latest_version(NUGET_DIRECTML_PACKAGE);
+        let dml_nupkg_url = format!(
+            "https://globalcdn.nuget.org/packages/{pkg}.{ver}.nupkg?packageVersion={ver}",
+            pkg = NUGET_DIRECTML_PACKAGE,
+            ver = dml_version,
+        );
+        let dml_dir = manifest_dir.join(format!("_tmp_directml_{}", dml_version));
+        let dml_zip = manifest_dir.join(format!("_tmp_directml_{}.zip", dml_version));
+        curl_download(&dml_nupkg_url, &dml_zip);
+        extract_zip(&dml_zip, &dml_dir);
+        let _ = fs::remove_file(&dml_zip);
+
+        // DirectML.dll is at bin/x64-win/DirectML.dll in the NuGet package
+        let directml_src = dml_dir.join("bin").join("x64-win").join("DirectML.dll");
+        if directml_src.exists() {
+            fs::copy(&directml_src, lib_dir.join("DirectML.dll"))
+                .expect("Failed to copy DirectML.dll");
+            println!("cargo:warning=Copied DirectML.dll v{} from NuGet", dml_version);
+        } else {
+            // Fallback: search recursively
+            if let Some(found) = find_file_recursive(&dml_dir, "DirectML.dll") {
+                fs::copy(&found, lib_dir.join("DirectML.dll"))
+                    .expect("Failed to copy DirectML.dll");
+                println!("cargo:warning=Copied DirectML.dll from NuGet (fallback path)");
+            } else {
+                println!("cargo:warning=DirectML.dll not found in NuGet package!");
+            }
+        }
+        let _ = fs::remove_dir_all(&dml_dir);
 
         println!("cargo:warning=ORT DirectML assembled in {}", lib_dir.display());
     }
@@ -196,55 +210,6 @@ fn nuget_latest_version(package: &str) -> String {
     // Parse: {"versions":["1.20.0","1.21.0",...]}
     extract_json_string_array_last(&json_str, "versions")
         .expect("No versions found in NuGet index")
-}
-
-/// Query the PyPI JSON API to find the latest version and a win_amd64 wheel URL.
-/// Returns (version, wheel_download_url).
-fn pypi_latest_wheel(package: &str) -> (String, String) {
-    let api_url = format!("https://pypi.org/pypi/{}/json", package);
-    let json_str = curl_fetch_string(&api_url);
-
-    // Extract version from "version":"X.Y.Z"
-    let version = {
-        let marker = "\"version\":";
-        let pos = json_str.find(marker).expect("No version field in PyPI JSON");
-        let after = &json_str[pos + marker.len()..];
-        let after = after.trim_start();
-        assert!(after.starts_with('"'), "Expected quoted version string");
-        let start = 1;
-        let end = after[start..].find('"').expect("Unterminated version string") + start;
-        after[start..end].to_string()
-    };
-
-    // Find a cp313+ win_amd64 wheel URL in the "urls" array.
-    // We need cp313+ because older wheels (cp311/cp312) use a .data/purelib/ layout
-    // that separates onnxruntime.dll into a pybind module, while cp313+ wheels have
-    // a flat onnxruntime/capi/ layout with all native DLLs together.
-    let wheel_url = {
-        let mut url = None;
-        let needles = ["cp313-cp313-win_amd64.whl", "cp314-cp314-win_amd64.whl", "win_amd64.whl"];
-        'outer: for needle in &needles {
-            let mut search_from = 0;
-            while let Some(pos) = json_str[search_from..].find(needle) {
-                let abs_pos = search_from + pos;
-                let region = &json_str[..abs_pos];
-                if let Some(url_key_pos) = region.rfind("\"url\"") {
-                    let after_key = &json_str[url_key_pos + 5..];
-                    let after_key = after_key.trim_start().trim_start_matches(':').trim_start();
-                    if after_key.starts_with('"') {
-                        let start = 1;
-                        let end = after_key[start..].find('"').unwrap() + start;
-                        url = Some(after_key[start..end].to_string());
-                        break 'outer;
-                    }
-                }
-                search_from = abs_pos + needle.len();
-            }
-        }
-        url.expect("No win_amd64 wheel found in PyPI JSON")
-    };
-
-    (version, wheel_url)
 }
 
 // ---------------------------------------------------------------------------
