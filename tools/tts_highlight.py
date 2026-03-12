@@ -19,14 +19,14 @@ import pythoncom
 pythoncom.CoInitialize()
 import win32com.client
 _warmup_voice = win32com.client.Dispatch("SAPI.SpVoice")
-# Enumerate voices to trigger DLL loading in LightBlue engines
+# Enumerate voices to trigger DLL loading in LightBlue engines.
+# Use synchronous speak to fully load models before showing the UI.
 _voices = _warmup_voice.GetVoices()
 for _i in range(_voices.Count):
     _desc = _voices.Item(_i).GetDescription()
     if "LightBlue" in _desc:
         _warmup_voice.Voice = _voices.Item(_i)
-        # Speak empty string to trigger model warm-up
-        _warmup_voice.Speak("", 1)  # SVSFlagsAsync
+        _warmup_voice.Speak(".", 0)  # Synchronous — blocks until models loaded
         break
 del _warmup_voice, _voices
 
@@ -154,6 +154,7 @@ class TTSHighlightApp(QWidget):
         # SVSFlagsAsync=1, SVSFPurgeBeforeSpeak=2
         self.voice.Speak(self.current_text, 1 | 2)
         self.speaking = True
+        self.speech_started = False  # True once RunningState==2 seen
         self.last_pos = -1
         self.last_len = 0
 
@@ -183,10 +184,20 @@ class TTSHighlightApp(QWidget):
         try:
             pythoncom.PumpWaitingMessages()
             status = self.voice.Status
-            running = status.RunningState  # 0=done, 1=done, 2=speaking
+            running = status.RunningState  # 0=done, 2=speaking
+
+            if running == 2:
+                self.speech_started = True
+
+            # Only finish once speech has actually started and then stopped.
+            # Before the engine finishes loading/synthesizing, RunningState
+            # stays at 0 — we must not treat that as "done".
+            if running != 2 and self.speech_started:
+                self._finish()
+                return
 
             if running != 2:
-                self._finish()
+                # Still waiting for engine to start
                 return
 
             pos = status.InputWordPosition
