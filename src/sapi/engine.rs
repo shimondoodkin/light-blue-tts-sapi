@@ -611,7 +611,7 @@ unsafe fn emit_word_boundary_events(site: &ISpTTSEngineSite, metadata: &Synthesi
         events.push(SPEVENT {
             eEventId: SPEI_WORD_BOUNDARY,
             elParamType: SPET_LPARAM_IS_UNDEFINED,
-            ulStreamNum: 1,
+            ulStreamNum: 0, // SAPI fills in the correct stream number
             ullAudioStreamOffset: offset_bytes,
             // SpVoice automation surfaces OnWord(CharacterPosition, Length)
             // from lParam and wParam respectively for SPEI_WORD_BOUNDARY.
@@ -633,7 +633,12 @@ unsafe fn emit_word_boundary_events(site: &ISpTTSEngineSite, metadata: &Synthesi
 unsafe fn site_wants_word_boundary(site: &ISpTTSEngineSite) -> bool {
     let mut interest = 0u64;
     let hr = site.GetEventInterest(&mut interest);
-    hr.is_ok() && (interest & SPFEI_WORD_BOUNDARY) == SPFEI_WORD_BOUNDARY
+    let wants = hr.is_ok() && (interest & SPFEI_WORD_BOUNDARY) == SPFEI_WORD_BOUNDARY;
+    log::info!(
+        "site_wants_word_boundary: hr={:?} interest=0x{:016X} mask=0x{:016X} -> {}",
+        hr, interest, SPFEI_WORD_BOUNDARY, wants
+    );
+    wants
 }
 
 fn utf16_len(text: &str) -> usize {
