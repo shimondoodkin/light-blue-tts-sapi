@@ -4,6 +4,7 @@ onnxruntime-win-x64-gpu-*/
 onnxruntime-win-x64-*/
 ort-directml-*/
 ort-openvino/
+ort-openvino-*/
 openvino/
 ovep-win/
 *.zip
