@@ -3,16 +3,22 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// WinML nightly build — onnxruntime.dll with DirectML support (default).
-const ORT_WINML_VERSION: &str = "1.23.0-dev-20250730-1206-a89b038cd2";
-const ORT_WINML_PACKAGE: &str = "microsoft.ai.machinelearning";
-
 /// CUDA-enabled ORT from official GitHub releases.
 const ORT_CUDA_VERSION: &str = "1.23.2";
+
+/// Intel OpenVINO ORT NuGet package.
+const ORT_OPENVINO_PACKAGE: &str = "intel.ml.onnxruntime.openvino";
+
+/// PyPI package for ORT DirectML (default CPU build).
+const PYPI_DIRECTML_PACKAGE: &str = "onnxruntime-directml";
+
+/// NuGet v3 flat-container base URL for version discovery.
+const NUGET_FLAT_BASE: &str = "https://api.nuget.org/v3-flatcontainer";
 
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let use_cuda = env::var("CARGO_FEATURE_CUDA").is_ok();
+    let use_openvino = env::var("CARGO_FEATURE_OPENVINO").is_ok();
 
     let (ort_lib_dir, variant) = if use_cuda {
         let folder = format!("onnxruntime-win-x64-gpu-{}", ORT_CUDA_VERSION);
@@ -25,20 +31,17 @@ fn main() {
         }
 
         (lib_dir, "cuda")
+    } else if use_openvino {
+        let (lib_dir, version) = download_or_reuse_openvino(&manifest_dir);
+        println!("cargo:warning=Using ORT OpenVINO v{}", version);
+        (lib_dir, "openvino")
     } else {
-        let folder = format!("ort-winml-{}", ORT_WINML_VERSION);
-        let ort_dir = manifest_dir.join(&folder);
-        let lib_dir = ort_dir.join("runtimes").join("win-x64").join("_native");
-
-        if !lib_dir.exists() {
-            println!("cargo:warning=Downloading ORT WinML nightly {}...", ORT_WINML_VERSION);
-            download_ort_winml(&manifest_dir, &folder);
-        }
-
-        (lib_dir, "winml")
+        let (lib_dir, version) = download_or_reuse_directml(&manifest_dir);
+        println!("cargo:warning=Using ORT DirectML v{}", version);
+        (lib_dir, "directml")
     };
 
-    copy_dlls_to_target(&ort_lib_dir, use_cuda);
+    copy_dlls_to_target(&ort_lib_dir, use_cuda, use_openvino);
 
     println!(
         "cargo:rustc-env=ORT_DYLIB_PATH={}",
@@ -47,26 +50,33 @@ fn main() {
     println!("cargo:warning=Using ORT variant: {} ({})", variant, ort_lib_dir.display());
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=CARGO_FEATURE_CUDA");
+    println!("cargo:rerun-if-env-changed=CARGO_FEATURE_OPENVINO");
 }
 
 // ---------------------------------------------------------------------------
-// WinML (DirectML) download
+// DirectML download (default — from PyPI wheel)
 // ---------------------------------------------------------------------------
 
-fn download_ort_winml(manifest_dir: &Path, folder: &str) {
-    let nupkg_url = format!(
-        "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/ORT-Nightly/nuget/v3/flat2/{pkg}/{ver}/{pkg}.{ver}.nupkg",
-        pkg = ORT_WINML_PACKAGE,
-        ver = ORT_WINML_VERSION,
-    );
-    let zip_path = manifest_dir.join(format!("{}.zip", folder));
-    let ort_dir = manifest_dir.join(folder);
+/// Download or reuse the ORT DirectML package from PyPI.
+/// Returns (lib_dir, version_string).
+fn download_or_reuse_directml(manifest_dir: &Path) -> (PathBuf, String) {
+    let (version, wheel_url) = pypi_latest_wheel(PYPI_DIRECTML_PACKAGE);
+    let folder = format!("ort-directml-{}", version);
+    let ort_dir = manifest_dir.join(&folder);
+    let lib_dir = ort_dir.join("onnxruntime").join("capi");
 
-    curl_download(&nupkg_url, &zip_path);
-    extract_zip(&zip_path, &ort_dir);
-    let _ = fs::remove_file(&zip_path);
+    if !lib_dir.exists() {
+        println!("cargo:warning=Downloading ORT DirectML v{} from PyPI...", version);
+        let zip_path = manifest_dir.join(format!("{}.zip", folder));
 
-    println!("cargo:warning=ORT WinML extracted to {}", ort_dir.display());
+        curl_download(&wheel_url, &zip_path);
+        extract_zip(&zip_path, &ort_dir);
+        let _ = fs::remove_file(&zip_path);
+
+        println!("cargo:warning=ORT DirectML extracted to {}", ort_dir.display());
+    }
+
+    (lib_dir, version)
 }
 
 // ---------------------------------------------------------------------------
@@ -89,6 +99,101 @@ fn download_ort_cuda(manifest_dir: &Path, folder: &str) {
 }
 
 // ---------------------------------------------------------------------------
+// OpenVINO download
+// ---------------------------------------------------------------------------
+
+/// Download or reuse the OpenVINO ORT NuGet package.
+/// Returns (lib_dir, version_string).
+fn download_or_reuse_openvino(manifest_dir: &Path) -> (PathBuf, String) {
+    let version = nuget_latest_version(ORT_OPENVINO_PACKAGE);
+    let folder = format!("ort-openvino-{}", version);
+    let ort_dir = manifest_dir.join(&folder);
+    let lib_dir = ort_dir.join("runtimes").join("win-x64").join("native");
+
+    if !lib_dir.exists() {
+        println!("cargo:warning=Downloading ORT OpenVINO v{}...", version);
+        let nupkg_url = format!(
+            "https://globalcdn.nuget.org/packages/{pkg}.{ver}.nupkg?packageVersion={ver}",
+            pkg = ORT_OPENVINO_PACKAGE,
+            ver = version,
+        );
+        let zip_path = manifest_dir.join(format!("{}.zip", folder));
+
+        curl_download(&nupkg_url, &zip_path);
+        extract_zip(&zip_path, &ort_dir);
+        let _ = fs::remove_file(&zip_path);
+
+        println!("cargo:warning=ORT OpenVINO extracted to {}", ort_dir.display());
+    }
+
+    (lib_dir, version)
+}
+
+// ---------------------------------------------------------------------------
+// Version discovery helpers
+// ---------------------------------------------------------------------------
+
+/// Query the NuGet v3 flat-container index to find the latest version of a package.
+fn nuget_latest_version(package: &str) -> String {
+    let index_url = format!("{}/{}/index.json", NUGET_FLAT_BASE, package);
+    let json_str = curl_fetch_string(&index_url);
+
+    // Parse: {"versions":["1.20.0","1.21.0",...]}
+    extract_json_string_array_last(&json_str, "versions")
+        .expect("No versions found in NuGet index")
+}
+
+/// Query the PyPI JSON API to find the latest version and a win_amd64 wheel URL.
+/// Returns (version, wheel_download_url).
+fn pypi_latest_wheel(package: &str) -> (String, String) {
+    let api_url = format!("https://pypi.org/pypi/{}/json", package);
+    let json_str = curl_fetch_string(&api_url);
+
+    // Extract version from "version":"X.Y.Z"
+    let version = {
+        let marker = "\"version\":";
+        let pos = json_str.find(marker).expect("No version field in PyPI JSON");
+        let after = &json_str[pos + marker.len()..];
+        let after = after.trim_start();
+        assert!(after.starts_with('"'), "Expected quoted version string");
+        let start = 1;
+        let end = after[start..].find('"').expect("Unterminated version string") + start;
+        after[start..end].to_string()
+    };
+
+    // Find a cp313+ win_amd64 wheel URL in the "urls" array.
+    // We need cp313+ because older wheels (cp311/cp312) use a .data/purelib/ layout
+    // that separates onnxruntime.dll into a pybind module, while cp313+ wheels have
+    // a flat onnxruntime/capi/ layout with all native DLLs together.
+    let wheel_url = {
+        let mut url = None;
+        // Prefer cp313+ wheels for flat layout
+        let needles = ["cp313-cp313-win_amd64.whl", "cp314-cp314-win_amd64.whl", "win_amd64.whl"];
+        'outer: for needle in &needles {
+            let mut search_from = 0;
+            while let Some(pos) = json_str[search_from..].find(needle) {
+                let abs_pos = search_from + pos;
+                let region = &json_str[..abs_pos];
+                if let Some(url_key_pos) = region.rfind("\"url\"") {
+                    let after_key = &json_str[url_key_pos + 5..];
+                    let after_key = after_key.trim_start().trim_start_matches(':').trim_start();
+                    if after_key.starts_with('"') {
+                        let start = 1;
+                        let end = after_key[start..].find('"').unwrap() + start;
+                        url = Some(after_key[start..end].to_string());
+                        break 'outer;
+                    }
+                }
+                search_from = abs_pos + needle.len();
+            }
+        }
+        url.expect("No win_amd64 wheel found in PyPI JSON")
+    };
+
+    (version, wheel_url)
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -98,6 +203,15 @@ fn curl_download(url: &str, dest: &Path) {
         .status()
         .expect("Failed to run curl");
     assert!(status.success(), "curl download failed for {}", url);
+}
+
+fn curl_fetch_string(url: &str) -> String {
+    let output = Command::new("curl")
+        .args(["-s", "-L", url])
+        .output()
+        .expect("Failed to run curl");
+    assert!(output.status.success(), "Failed to fetch {}", url);
+    String::from_utf8_lossy(&output.stdout).to_string()
 }
 
 fn extract_zip(zip_path: &Path, dest_dir: &Path) {
@@ -117,19 +231,77 @@ fn extract_zip(zip_path: &Path, dest_dir: &Path) {
     assert!(status.success(), "Expand-Archive failed");
 }
 
-fn copy_dlls_to_target(ort_lib_dir: &Path, use_cuda: bool) {
+/// Extract the last string from a JSON string array field.
+/// e.g. for `"versions":["a","b","c"]` with key "versions", returns Some("c").
+fn extract_json_string_array_last(json: &str, key: &str) -> Option<String> {
+    let search = format!("\"{}\"", key);
+    let start = json.find(&search)?;
+    let bracket_end = json[start..].find(']')? + start;
+    let section = &json[start..=bracket_end];
+
+    let mut last = None;
+    let mut i = 0;
+    let bytes = section.as_bytes();
+    while i < bytes.len() {
+        if bytes[i] == b'"' {
+            i += 1;
+            let s_start = i;
+            while i < bytes.len() && bytes[i] != b'"' {
+                i += 1;
+            }
+            let s = &section[s_start..i];
+            if s != key && !s.is_empty() {
+                last = Some(s.to_string());
+            }
+        }
+        i += 1;
+    }
+    last
+}
+
+/// DLLs to ship for DirectML (default CPU build).
+const DIRECTML_DLLS: &[&str] = &[
+    "onnxruntime.dll",
+    "onnxruntime_providers_shared.dll",
+    "DirectML.dll",
+];
+
+/// DLLs to ship for OpenVINO (everything except debug DLLs, tbbmalloc, tbbbind,
+/// and frontends we don't use — tensorflow, paddle, pytorch).
+const OPENVINO_DLLS: &[&str] = &[
+    "onnxruntime.dll",
+    "onnxruntime_providers_openvino.dll",
+    "onnxruntime_providers_shared.dll",
+    "openvino.dll",
+    "openvino_c.dll",
+    "openvino_intel_cpu_plugin.dll",
+    "openvino_intel_gpu_plugin.dll",
+    "openvino_intel_npu_plugin.dll",
+    "openvino_onnx_frontend.dll",
+    "openvino_ir_frontend.dll",
+    "openvino_auto_plugin.dll",
+    "tbb12.dll",
+];
+
+fn copy_dlls_to_target(ort_lib_dir: &Path, use_cuda: bool, use_openvino: bool) {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let target_dir = out_dir
         .ancestors()
         .nth(3)
         .expect("Could not determine target directory");
 
-    let mut dlls: Vec<&str> = vec!["onnxruntime.dll"];
-    if use_cuda {
-        dlls.push("onnxruntime_providers_shared.dll");
-        dlls.push("onnxruntime_providers_cuda.dll");
-        dlls.push("onnxruntime_providers_tensorrt.dll");
-    }
+    let dlls: Vec<&str> = if use_openvino {
+        OPENVINO_DLLS.to_vec()
+    } else if use_cuda {
+        vec![
+            "onnxruntime.dll",
+            "onnxruntime_providers_shared.dll",
+            "onnxruntime_providers_cuda.dll",
+            "onnxruntime_providers_tensorrt.dll",
+        ]
+    } else {
+        DIRECTML_DLLS.to_vec()
+    };
 
     for dll_name in &dlls {
         let src = ort_lib_dir.join(dll_name);

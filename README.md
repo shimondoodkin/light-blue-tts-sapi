@@ -9,6 +9,7 @@ Registers as a standard Windows voice — works with any SAPI 5 application (Nar
 - **SAPI 5 integration** — appears as a standard Windows voice
 - **Male and female voices** with multiple quality/speed presets (4, 8, 32, 64 diffusion steps)
 - **CPU (DirectML)** — works out of the box, no GPU required
+- **Intel OpenVINO** — optional, optimized for Intel CPUs, integrated GPUs, and NPUs
 - **GPU (CUDA/TensorRT)** — optional, for faster synthesis on NVIDIA GPUs
 - **Hebrew diacritization** — automatic nikud via [phonikud-rs](https://github.com/shimondoodkin/phonikud-rs)
 - **CLI tool** — `lightblue-tts.exe` for command-line speech synthesis
@@ -20,6 +21,14 @@ Registers as a standard Windows voice — works with any SAPI 5 application (Nar
 1. Download and run **LightBlue-TTS-SAPI-Setup.exe** (app installer)
 2. Download and run **LightBlue-TTS-SAPI-Models.exe** (model files)
 3. Done! The voice appears in Windows speech settings.
+
+### Intel OpenVINO (Intel CPU/GPU/NPU)
+
+For optimized inference on Intel hardware (no extra drivers needed):
+
+1. Download and run **LightBlue-TTS-SAPI-Setup.exe** (install the app first)
+2. Download and run **LightBlue-TTS-SAPI-Models.exe** (installs into the app folder)
+3. Download and run **LightBlue-TTS-SAPI-ORT-OpenVINO.exe** (overwrites CPU onnxruntime.dll with OpenVINO version — must be installed after the app setup)
 
 ### GPU (TensorRT / CUDA)
 
@@ -78,15 +87,31 @@ choco install nsis -y
 
 ### Build
 
+The project supports three build variants via Cargo feature flags. Each variant auto-downloads the appropriate ONNX Runtime distribution at build time (no manual DLL downloads needed).
+
 ```bash
-# CPU/DirectML build (default — build.rs auto-downloads WinML ORT)
+# CPU/DirectML build (default — auto-downloads WinML ORT)
 cargo build --release
+
+# Intel OpenVINO build (auto-downloads latest Intel ORT from NuGet)
+cargo build --release --features openvino
+
+# NVIDIA CUDA/TensorRT build (auto-downloads ORT GPU from GitHub)
+cargo build --release --features cuda
 ```
+
+| Variant | Feature flag | Runtime | Best for |
+|---------|-------------|---------|----------|
+| **CPU (DirectML)** | *(default)* | WinML nightly | Works everywhere, no extra setup |
+| **OpenVINO** | `--features openvino` | Intel OpenVINO EP | Intel CPUs, Intel integrated/discrete GPUs, Intel NPUs |
+| **CUDA** | `--features cuda` | CUDA + TensorRT EPs | NVIDIA GPUs (requires CUDA 12.x + cuDNN 9.x installed) |
 
 Build outputs in `target/release/`:
 - `lightblue_sapi.dll` — SAPI 5 COM engine
 - `lightblue-tts.exe` — CLI tool
 - `onnxruntime.dll` — ONNX Runtime (auto-downloaded by build.rs)
+- OpenVINO variant also outputs: `onnxruntime_providers_openvino.dll`, `openvino.dll`, `openvino_*.dll`, `tbb12.dll`
+- CUDA variant also outputs: `onnxruntime_providers_cuda.dll`, `onnxruntime_providers_tensorrt.dll`, `onnxruntime_providers_shared.dll`
 
 ### Register the SAPI Voice
 
@@ -121,24 +146,47 @@ makensis installer\setup.nsi
 makensis installer\setup-models.nsi
 ```
 
+### Build ORT OpenVINO Installer
+
+The ORT OpenVINO installer repackages the [Intel.ML.OnnxRuntime.OpenVino](https://www.nuget.org/packages/Intel.ML.OnnxRuntime.OpenVino) NuGet package DLLs into an NSIS installer.
+
+```bash
+# Build with OpenVINO feature (auto-downloads from NuGet)
+cargo build --release --features openvino
+
+# Copy DLLs to installer directory
+for dll in onnxruntime.dll onnxruntime_providers_openvino.dll onnxruntime_providers_shared.dll \
+           openvino.dll openvino_c.dll openvino_intel_cpu_plugin.dll openvino_intel_gpu_plugin.dll \
+           openvino_intel_npu_plugin.dll openvino_onnx_frontend.dll openvino_ir_frontend.dll \
+           openvino_auto_plugin.dll tbb12.dll; do
+    cp target/release/$dll installer/
+done
+
+# Build installer
+makensis installer\setup-ort-openvino.nsi
+```
+
+Or use the GitHub Actions workflow: **Release ORT OpenVINO** (manual dispatch).
+
 ### Build ORT GPU Installer
 
 The ORT GPU installer repackages the official [ONNX Runtime GPU release](https://github.com/microsoft/onnxruntime/releases) DLLs into an NSIS installer that extracts them to the app folder.
 
 ```bash
-# Download ONNX Runtime GPU (example version)
-curl -L -o ort-gpu.zip https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-win-x64-gpu-1.23.2.zip
-unzip ort-gpu.zip
+# Build with CUDA feature (auto-downloads from GitHub)
+cargo build --release --features cuda
 
 # Copy DLLs to installer directory
-cp onnxruntime-win-x64-gpu-1.23.2/lib/onnxruntime.dll installer/
-cp onnxruntime-win-x64-gpu-1.23.2/lib/onnxruntime_providers_shared.dll installer/
-cp onnxruntime-win-x64-gpu-1.23.2/lib/onnxruntime_providers_cuda.dll installer/
-cp onnxruntime-win-x64-gpu-1.23.2/lib/onnxruntime_providers_tensorrt.dll installer/
+cp target/release/onnxruntime.dll installer/
+cp target/release/onnxruntime_providers_shared.dll installer/
+cp target/release/onnxruntime_providers_cuda.dll installer/
+cp target/release/onnxruntime_providers_tensorrt.dll installer/
 
 # Build installer
 makensis installer\setup-ort-gpu.nsi
 ```
+
+Or use the GitHub Actions workflow: **Release ORT GPU** (manual dispatch).
 
 ## Model Surgery (GPU Optimization)
 

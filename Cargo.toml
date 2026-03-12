@@ -13,7 +13,7 @@ ort = { version = "=2.0.0-rc.11", default-features = false, features = ["ndarray
 ndarray = "0.17"
 
 # Hebrew diacritization (nikud)
-phonikud-rs = { git = "https://github.com/shimondoodkin/phonikud-rs.git" }
+phonikud-rs = { path = "../phonikud-rs" }
 
 # Windows COM / SAPI
 windows = { version = "0.58", features = [
@@ -68,3 +68,4 @@ path = "src/bin/download_models.rs"
 [features]
 default = []
 cuda = ["ort/cuda"]
+openvino = []

@@ -1,0 +1,73 @@
+name: Release ORT OpenVINO
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to attach the asset to (e.g. v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  ort-openvino:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Intel ORT OpenVINO NuGet package (latest)
+        shell: bash
+        run: |
+          # Query NuGet index for latest version
+          INDEX=$(curl -s "https://api.nuget.org/v3-flatcontainer/intel.ml.onnxruntime.openvino/index.json")
+          VERSION=$(echo "$INDEX" | python3 -c "import json,sys; v=json.load(sys.stdin)['versions']; print(v[-1])")
+          echo "ORT_OPENVINO_VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "Using Intel.ML.OnnxRuntime.OpenVino v${VERSION}"
+
+          curl -L -o ort-openvino.zip "https://globalcdn.nuget.org/packages/intel.ml.onnxruntime.openvino.${VERSION}.nupkg?packageVersion=${VERSION}"
+          unzip -q ort-openvino.zip -d ort-openvino
+
+          # Copy required DLLs to installer directory
+          SRC="ort-openvino/runtimes/win-x64/native"
+          cp "${SRC}/onnxruntime.dll" installer/
+          cp "${SRC}/onnxruntime_providers_openvino.dll" installer/
+          cp "${SRC}/onnxruntime_providers_shared.dll" installer/
+          cp "${SRC}/openvino.dll" installer/
+          cp "${SRC}/openvino_c.dll" installer/
+          cp "${SRC}/openvino_intel_cpu_plugin.dll" installer/
+          cp "${SRC}/openvino_intel_gpu_plugin.dll" installer/
+          cp "${SRC}/openvino_intel_npu_plugin.dll" installer/
+          cp "${SRC}/openvino_onnx_frontend.dll" installer/
+          cp "${SRC}/openvino_ir_frontend.dll" installer/
+          cp "${SRC}/openvino_auto_plugin.dll" installer/
+          cp "${SRC}/tbb12.dll" installer/
+
+      - name: Install NSIS
+        run: choco install nsis -y
+
+      - name: Create installer output directory
+        run: mkdir -p target/installer
+        shell: bash
+
+      - name: Build NSIS ORT OpenVINO installer
+        shell: cmd
+        working-directory: installer
+        run: |
+          "C:\Program Files (x86)\NSIS\makensis.exe" setup-ort-openvino.nsi
+
+      - name: Upload ORT OpenVINO installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LightBlue-TTS-SAPI-ORT-OpenVINO
+          path: target/installer/LightBlue-TTS-SAPI-ORT-OpenVINO.exe
+
+      - name: Upload to GitHub Release
+        if: inputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: target/installer/LightBlue-TTS-SAPI-ORT-OpenVINO.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

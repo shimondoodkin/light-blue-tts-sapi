@@ -84,6 +84,16 @@ fn create_lazy_synthesizer() -> Result<Arc<bridge::LazyLightBlueSynthesizer>, Bo
         log::info!("Set ORT_DYLIB_PATH to {}", ort_dll.display());
     }
 
+    // Add the DLL directory to PATH so OpenVINO/CUDA provider DLLs next to our
+    // DLL can be found (SAPI hosts like svchost.exe won't have our dir on PATH).
+    if let Ok(current_path) = std::env::var("PATH") {
+        let dll_dir_str = dll_dir.to_string_lossy();
+        if !current_path.split(';').any(|d| d == dll_dir_str.as_ref()) {
+            std::env::set_var("PATH", format!("{};{}", dll_dir.display(), current_path));
+            log::info!("Added DLL dir to PATH: {}", dll_dir.display());
+        }
+    }
+
     // Model paths — all relative to the DLL's install directory
     let models_dir = dll_dir.join("models");
     let phonikud_model = models_dir.join("phonikud.onnx");

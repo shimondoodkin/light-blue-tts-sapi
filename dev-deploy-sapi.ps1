@@ -38,8 +38,27 @@ if (-not (Test-Path $InstallDir)) {
 Write-Host "  Copying $DllName..."
 Copy-Item -Path $DllSource -Destination (Join-Path $InstallDir $DllName) -Force
 
-# 2. Copy onnxruntime.dll (and CUDA provider DLLs if present)
-$OrtDlls = @("onnxruntime.dll", "onnxruntime_providers_cuda.dll", "onnxruntime_providers_shared.dll")
+# 2. Copy onnxruntime.dll and provider/runtime DLLs (CUDA or OpenVINO if present)
+$OrtDlls = @(
+    "onnxruntime.dll",
+    "onnxruntime_providers_shared.dll",
+    # DirectML
+    "DirectML.dll",
+    # CUDA
+    "onnxruntime_providers_cuda.dll",
+    "onnxruntime_providers_tensorrt.dll",
+    # OpenVINO
+    "onnxruntime_providers_openvino.dll",
+    "openvino.dll",
+    "openvino_c.dll",
+    "openvino_intel_cpu_plugin.dll",
+    "openvino_intel_gpu_plugin.dll",
+    "openvino_intel_npu_plugin.dll",
+    "openvino_onnx_frontend.dll",
+    "openvino_ir_frontend.dll",
+    "openvino_auto_plugin.dll",
+    "tbb12.dll"
+)
 foreach ($dll in $OrtDlls) {
     $src = Join-Path $TargetDir $dll
     if (Test-Path $src) {

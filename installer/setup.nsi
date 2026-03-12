@@ -36,10 +36,11 @@ Section "Install"
     ; Main DLL, CLI tools
     File "..\target\release\lightblue_sapi.dll"
     File "..\target\release\lightblue-tts.exe"
-    ; ONNX Runtime (WinML/DirectML — CPU fallback)
-    ; Skip if already present (don't overwrite a GPU version)
+    ; ONNX Runtime DirectML — skip if already present (don't overwrite a GPU/OpenVINO version)
     SetOverwrite off
     File "..\target\release\onnxruntime.dll"
+    File "..\target\release\onnxruntime_providers_shared.dll"
+    File "..\target\release\DirectML.dll"
     SetOverwrite on
 
     ; Create directory structure for models
@@ -80,11 +81,27 @@ Section "Uninstall"
     RMDir /r "$INSTDIR\dictionaries"
     Delete "$INSTDIR\icon.ico"
     Delete "$INSTDIR\lightblue_sapi.dll"
+    Delete "$INSTDIR\lightblue-tts.exe"
+    ; ORT core
     Delete "$INSTDIR\onnxruntime.dll"
     Delete "$INSTDIR\onnxruntime_providers_shared.dll"
+    ; DirectML
+    Delete "$INSTDIR\DirectML.dll"
+    ; CUDA/TensorRT
     Delete "$INSTDIR\onnxruntime_providers_cuda.dll"
     Delete "$INSTDIR\onnxruntime_providers_tensorrt.dll"
-    Delete "$INSTDIR\lightblue-tts.exe"
+    ; OpenVINO
+    Delete "$INSTDIR\onnxruntime_providers_openvino.dll"
+    Delete "$INSTDIR\openvino.dll"
+    Delete "$INSTDIR\openvino_c.dll"
+    Delete "$INSTDIR\openvino_intel_cpu_plugin.dll"
+    Delete "$INSTDIR\openvino_intel_gpu_plugin.dll"
+    Delete "$INSTDIR\openvino_intel_npu_plugin.dll"
+    Delete "$INSTDIR\openvino_onnx_frontend.dll"
+    Delete "$INSTDIR\openvino_ir_frontend.dll"
+    Delete "$INSTDIR\openvino_auto_plugin.dll"
+    Delete "$INSTDIR\tbb12.dll"
+    ; Uninstaller
     Delete "$INSTDIR\Uninstall.exe"
     RMDir "$INSTDIR"
 
