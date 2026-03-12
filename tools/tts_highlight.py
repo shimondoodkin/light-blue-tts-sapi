@@ -277,8 +277,8 @@ class TTSHighlightApp(QWidget):
 
             if highlight_pos < 0 or highlight_len <= 0:
                 self.display_label.setText(
-                    f'<div dir="rtl" style="text-align:right;">'
-                    f'{html.escape(text)}</div>'
+                    f'<p style="direction:rtl; text-align:right;">'
+                    f'{html.escape(text)}</p>'
                 )
                 return
 
@@ -286,8 +286,8 @@ class TTSHighlightApp(QWidget):
             text_len = len(text)
             if highlight_pos >= text_len:
                 self.display_label.setText(
-                    f'<div dir="rtl" style="text-align:right;">'
-                    f'{html.escape(text)}</div>'
+                    f'<p style="direction:rtl; text-align:right;">'
+                    f'{html.escape(text)}</p>'
                 )
                 return
             end = min(highlight_pos + highlight_len, text_len)
@@ -297,13 +297,13 @@ class TTSHighlightApp(QWidget):
             after = text[end:]
 
             highlighted = (
-                f'<div dir="rtl" style="text-align:right;">'
+                f'<p style="direction:rtl; text-align:right;">'
                 f'{html.escape(before)}'
                 f'<span style="background-color: #4FC3F7; color: black; '
                 f'border-radius: 3px; padding: 1px 3px;">'
                 f'{html.escape(word)}</span>'
                 f'{html.escape(after)}'
-                f'</div>'
+                f'</p>'
             )
             self.display_label.setText(highlighted)
         except Exception as e:
