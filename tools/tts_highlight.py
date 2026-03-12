@@ -45,6 +45,7 @@ class TTSHighlightApp(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("LightBlue TTS - Word Highlight")
+        self.setLayoutDirection(Qt.RightToLeft)
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
 
@@ -76,6 +77,7 @@ class TTSHighlightApp(QWidget):
         self.input_edit.setPlainText(SAMPLE_TEXT)
         self.input_edit.setMaximumHeight(100)
         self.input_edit.setFont(QFont("Segoe UI", 14))
+        self.input_edit.setLayoutDirection(Qt.RightToLeft)
         layout.addWidget(self.input_edit)
 
         # Buttons
