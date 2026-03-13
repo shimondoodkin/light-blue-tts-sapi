@@ -116,6 +116,15 @@ fn create_lazy_synthesizer() -> Result<Arc<bridge::LazyLightBlueSynthesizer>, Bo
     let phonikud_model = models_dir.join("phonikud.onnx");
     let phonikud_tokenizer = models_dir.join("tokenizer.json");
 
+    // Load user-editable dictionaries (symbols, abbreviations, names → IPA)
+    let dict_dir = dll_dir.join("dictionaries");
+    if dict_dir.is_dir() {
+        let n = phonikud_rs::expander::dictionary::load_extra_dictionaries(&dict_dir);
+        if n > 0 {
+            log::info!("Loaded {n} extra dictionary entries from {}", dict_dir.display());
+        }
+    }
+
     let style_json = models_dir.join("voices/male1.json");
     let style_json_path = if style_json.exists() {
         Some(style_json.to_string_lossy().into_owned())

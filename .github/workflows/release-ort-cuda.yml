@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       ort_version:
-        description: 'ONNX Runtime GPU version'
+        description: 'ONNX Runtime CUDA version'
         required: true
         default: '1.23.2'
         type: string
@@ -17,17 +17,17 @@ permissions:
   contents: write
 
 jobs:
-  ort-gpu:
+  ort-cuda:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download ONNX Runtime GPU
+      - name: Download ONNX Runtime CUDA
         shell: bash
         run: |
           ORT_VERSION="${{ inputs.ort_version }}"
-          curl -L -o ort-gpu.zip "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-win-x64-gpu-${ORT_VERSION}.zip"
-          unzip -q ort-gpu.zip
+          curl -L -o ort-cuda.zip "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-win-x64-gpu-${ORT_VERSION}.zip"
+          unzip -q ort-cuda.zip
 
           # Copy DLLs to installer directory for NSIS
           ORT_DIR="onnxruntime-win-x64-gpu-${ORT_VERSION}/lib"

@@ -46,7 +46,12 @@ Section "Install"
     ; Create directory structure for models
     CreateDirectory "$INSTDIR\models"
     CreateDirectory "$INSTDIR\models\voices"
-    CreateDirectory "$INSTDIR\dictionaries"
+
+    ; Dictionaries — user-editable word→IPA mappings
+    SetOutPath "$INSTDIR\dictionaries"
+    File "..\dictionaries\symbols.json"
+    File "..\dictionaries\special.json"
+    File "..\dictionaries\rashej_tevot.json"
 
     ; Register COM DLL
     ExecWait 'regsvr32 /s "$INSTDIR\lightblue_sapi.dll"'
@@ -76,12 +81,11 @@ Section "Uninstall"
     ; Unregister COM DLL
     ExecWait 'regsvr32 /u /s "$INSTDIR\lightblue_sapi.dll"'
 
-    ; Remove files
-    RMDir /r "$INSTDIR\models"
-    RMDir /r "$INSTDIR\dictionaries"
+    ; Remove known files
     Delete "$INSTDIR\icon.ico"
     Delete "$INSTDIR\lightblue_sapi.dll"
     Delete "$INSTDIR\lightblue-tts.exe"
+    Delete "$INSTDIR\log.txt"
     ; ORT core
     Delete "$INSTDIR\onnxruntime.dll"
     Delete "$INSTDIR\onnxruntime_providers_shared.dll"
@@ -101,9 +105,11 @@ Section "Uninstall"
     Delete "$INSTDIR\openvino_ir_frontend.dll"
     Delete "$INSTDIR\openvino_auto_plugin.dll"
     Delete "$INSTDIR\tbb12.dll"
-    ; Uninstaller
+    ; Uninstaller itself
     Delete "$INSTDIR\Uninstall.exe"
-    RMDir "$INSTDIR"
+
+    ; Remove entire install directory (models, dictionaries, any leftover files)
+    RMDir /r "$INSTDIR"
 
     ; Remove Add/Remove Programs entry
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LightBlueTTSSAPI"

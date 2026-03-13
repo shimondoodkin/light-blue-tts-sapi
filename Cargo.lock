@@ -1382,7 +1382,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 [[package]]
 name = "phonikud-rs"
 version = "0.1.0"
-source = "git+https://github.com/shimondoodkin/phonikud-rs.git#cb6af2d5d87f881151dc8cf1a751452262e79db5"
+source = "git+https://github.com/shimondoodkin/phonikud-rs.git#ccdc405e07b38549f77848c705488ffbf4f56ced"
 dependencies = [
  "anyhow",
  "ndarray",
