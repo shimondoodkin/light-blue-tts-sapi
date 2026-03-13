@@ -107,13 +107,13 @@ impl LightBlueSynthesizer {
         })
     }
 
-    fn prepare_synthesis(&self, original_text: &str) -> Result<PreparedSynthesis, BoxErr> {
-        let expanded = expander::expand_text_with_spans(original_text);
-        let normalized_text = expanded.text.clone();
-        log::debug!("Normalized: \"{normalized_text}\"");
-
-        let segments = split_by_language(&normalized_text);
-        let mut all_ipa = String::new();
+    /// Convert a text chunk to IPA, handling Hebrew/English language splitting.
+    ///
+    /// Hebrew segments are diacritized via phonikud then phonemized;
+    /// English segments go through the English phonemizer.
+    fn segment_to_ipa(&self, text: &str) -> Result<String, BoxErr> {
+        let segments = split_by_language(text);
+        let mut ipa = String::new();
 
         for segment in &segments {
             let trimmed = segment.trim();
@@ -121,7 +121,7 @@ impl LightBlueSynthesizer {
                 continue;
             }
 
-            let ipa = if trimmed.chars().any(is_hebrew_char) {
+            let segment_ipa = if trimmed.chars().any(is_hebrew_char) {
                 let t0 = std::time::Instant::now();
                 let diacritized = {
                     let mut pk = self.phonikud.lock().unwrap();
@@ -134,6 +134,28 @@ impl LightBlueSynthesizer {
                 phonemize::english::phonemize_english(trimmed)
             };
 
+            if !segment_ipa.trim().is_empty() {
+                if !ipa.is_empty() && !ipa.ends_with(' ') {
+                    ipa.push(' ');
+                }
+                ipa.push_str(&segment_ipa);
+            }
+        }
+
+        Ok(ipa)
+    }
+
+    fn prepare_synthesis(&self, original_text: &str) -> Result<PreparedSynthesis, BoxErr> {
+        let expanded = expander::expand_text_with_spans(original_text);
+        let normalized_text = expanded.text.clone();
+        log::debug!("Normalized: \"{normalized_text}\"");
+
+        // Chunk at paragraph level for phonikud (keeps input within BERT token limit)
+        let paragraphs = split_paragraphs(&normalized_text);
+        let mut all_ipa = String::new();
+
+        for para in &paragraphs {
+            let ipa = self.segment_to_ipa(para)?;
             if !ipa.trim().is_empty() {
                 if !all_ipa.is_empty() && !all_ipa.ends_with(' ') {
                     all_ipa.push(' ');
@@ -242,6 +264,57 @@ impl LazyLightBlueSynthesizer {
 /// Returns `true` if the character is a Hebrew letter/diacritic (U+0590..U+05FF).
 fn is_hebrew_char(c: char) -> bool {
     ('\u{0590}'..='\u{05FF}').contains(&c)
+}
+
+/// Split text into paragraphs.
+///
+/// Splits on blank lines (`\n\n` or `\r\n\r\n`). If no blank lines are found
+/// the whole text is returned as a single paragraph.
+fn split_paragraphs(text: &str) -> Vec<&str> {
+    let paragraphs: Vec<&str> = text
+        .split("\n\n")
+        .flat_map(|p| p.split("\r\n\r\n"))
+        .map(|p| p.trim())
+        .filter(|p| !p.is_empty())
+        .collect();
+
+    if paragraphs.is_empty() {
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
+            return Vec::new();
+        }
+        return vec![trimmed];
+    }
+
+    paragraphs
+}
+
+/// Split an IPA string into sentences at sentence-ending punctuation.
+///
+/// Cuts after `.`, `!`, or `?` (keeping the punctuation with the sentence).
+/// Trailing whitespace-only fragments are dropped.
+fn split_ipa_sentences(ipa: &str) -> Vec<String> {
+    let mut sentences = Vec::new();
+    let mut current = String::new();
+
+    for ch in ipa.chars() {
+        current.push(ch);
+        if ch == '.' || ch == '!' || ch == '?' {
+            let trimmed = current.trim().to_string();
+            if !trimmed.is_empty() {
+                sentences.push(trimmed);
+            }
+            current.clear();
+        }
+    }
+
+    // Remainder after the last sentence-ending punctuation
+    let trimmed = current.trim().to_string();
+    if !trimmed.is_empty() {
+        sentences.push(trimmed);
+    }
+
+    sentences
 }
 
 /// Split text into segments of Hebrew vs non-Hebrew.
@@ -407,6 +480,78 @@ fn pause_weight(word: &str) -> f32 {
     }
 }
 
+/// Group prepared words into sentence groups.
+///
+/// A new sentence starts after a word whose text ends with sentence-ending
+/// punctuation (`.`, `!`, `?`).  This aligns with `split_ipa_sentences`
+/// which splits on the same characters.
+fn group_words_by_sentence(words: &[PreparedWord]) -> Vec<Vec<usize>> {
+    let mut groups: Vec<Vec<usize>> = vec![Vec::new()];
+
+    for (i, word) in words.iter().enumerate() {
+        groups.last_mut().unwrap().push(i);
+        let ends_sentence = word.text.ends_with('.')
+            || word.text.ends_with('!')
+            || word.text.ends_with('?');
+        if ends_sentence && i + 1 < words.len() {
+            groups.push(Vec::new());
+        }
+    }
+
+    groups.retain(|g| !g.is_empty());
+    groups
+}
+
+/// Estimate word timings within a sentence and offset by cumulative time.
+fn estimate_sentence_word_timings(
+    words: &[&PreparedWord],
+    sentence_duration_sec: f32,
+    time_offset_sec: f32,
+) -> Vec<WordTiming> {
+    if words.is_empty() {
+        return Vec::new();
+    }
+
+    let mut units = Vec::with_capacity(words.len());
+    let mut total_units = 0.0f32;
+    for &word in words {
+        let speech = word_weight(word);
+        let pause = pause_weight(&word.text);
+        units.push((speech, pause));
+        total_units += speech + pause;
+    }
+
+    if total_units <= 0.0 {
+        total_units = words.len() as f32;
+        units = vec![(1.0, 0.0); words.len()];
+    }
+
+    let sec_per_unit = sentence_duration_sec / total_units;
+    let mut cursor = 0.0f32;
+    let mut timings = Vec::with_capacity(words.len());
+
+    for (&word, (speech_weight, pause_after)) in words.iter().zip(units.into_iter()) {
+        let start_sec = time_offset_sec + cursor;
+        let end_sec = time_offset_sec
+            + (cursor + speech_weight * sec_per_unit).min(sentence_duration_sec);
+        timings.push(WordTiming {
+            text: word.text.clone(),
+            normalized_span: word.normalized_span,
+            original_span: word.original_span,
+            start_sec,
+            end_sec,
+        });
+        cursor = (cursor + speech_weight * sec_per_unit + pause_after * sec_per_unit)
+            .min(sentence_duration_sec);
+    }
+
+    if let Some(last) = timings.last_mut() {
+        last.end_sec = (time_offset_sec + sentence_duration_sec).max(last.end_sec);
+    }
+
+    timings
+}
+
 impl TtsSynthesizer for LightBlueSynthesizer {
     fn synthesize(
         &self,
@@ -451,26 +596,239 @@ impl TtsSynthesizer for LightBlueSynthesizer {
         sink: &mut dyn FnMut(&[f32]) -> Result<(), BoxErr>,
     ) -> Result<SynthesisMetadata, BoxErr> {
         let effective_style = style_json.or(self.style_json_path.as_deref());
-        let prepared = self.prepare_synthesis(text)?;
+        let expanded = expander::expand_text_with_spans(text);
+        let normalized_text = expanded.text.clone();
+        log::debug!("Normalized: \"{normalized_text}\"");
 
-        if prepared.combined_ipa.trim().is_empty() {
+        // Split into paragraphs, then phonikud each, then split IPA into
+        // sentences and stream each sentence through TTS immediately.
+        let paragraphs = split_paragraphs(&normalized_text);
+        let mut all_ipa = String::new();
+        let mut total_samples = 0usize;
+
+        // Collect all sentence IPA strings first so we know the total count
+        // (needed to decide fade-in/fade-out on the first/last sentence).
+        let mut sentence_ipas: Vec<String> = Vec::new();
+
+        for para in &paragraphs {
+            let para_ipa = self.segment_to_ipa(para)?;
+            if para_ipa.trim().is_empty() {
+                continue;
+            }
+            if !all_ipa.is_empty() && !all_ipa.ends_with(' ') {
+                all_ipa.push(' ');
+            }
+            all_ipa.push_str(&para_ipa);
+
+            let sentences = split_ipa_sentences(&para_ipa);
+            for s in sentences {
+                if !s.trim().is_empty() {
+                    sentence_ipas.push(s);
+                }
+            }
+        }
+
+        if sentence_ipas.is_empty() {
             log::warn!("No phonemes produced for: \"{text}\"");
             let tts = self.tts.lock().unwrap();
             let sr = tts.sample_rate();
             let silence_len = (sr as f32 * 0.5) as usize;
             let samples = vec![0.0f32; silence_len];
             sink(&samples)?;
-            return Ok(build_metadata(text, &prepared, samples.len(), sr));
+            return Ok(SynthesisMetadata {
+                original_text: text.to_string(),
+                normalized_text,
+                combined_ipa: all_ipa,
+                words: Vec::new(),
+            });
         }
 
-        let mut total_samples = 0usize;
+        let num_sentences = sentence_ipas.len();
+        log::info!(
+            "Streaming {} sentence(s) from {} paragraph(s)",
+            num_sentences,
+            paragraphs.len()
+        );
+
+        let mut tts = self.tts.lock().unwrap();
+
+        for (i, sentence_ipa) in sentence_ipas.iter().enumerate() {
+            let is_first = i == 0;
+            let is_last = i + 1 == num_sentences;
+            log::info!(
+                "  sentence {}/{}: IPA=\"{}\"",
+                i + 1,
+                num_sentences,
+                sentence_ipa
+            );
+
+            tts.infer_stream(sentence_ipa, effective_style, steps, is_first, is_last, |chunk| {
+                total_samples += chunk.len();
+                sink(&chunk)
+            })?;
+
+            // Inter-sentence silence
+            if !is_last {
+                let sr = tts.sample_rate();
+                let pause_samples = (sr as f32 * 0.25) as usize;
+                let silence = vec![0.0f32; pause_samples];
+                total_samples += pause_samples;
+                sink(&silence)?;
+            }
+        }
+
+        log::info!("Streamed {} total samples", total_samples);
+
+        Ok(SynthesisMetadata {
+            original_text: text.to_string(),
+            normalized_text,
+            combined_ipa: all_ipa,
+            words: Vec::new(),
+        })
+    }
+
+    fn synthesize_sentences(
+        &self,
+        text: &str,
+        style_json: Option<&str>,
+        steps: Option<u32>,
+        _use_gpu: bool,
+        on_sentence: &mut dyn FnMut(&str, &[WordTiming], &[f32]) -> Result<(), BoxErr>,
+    ) -> Result<SynthesisMetadata, BoxErr> {
+        let effective_style = style_json.or(self.style_json_path.as_deref());
+        let expanded = expander::expand_text_with_spans(text);
+        let normalized_text = expanded.text.clone();
+        log::debug!("Normalized: \"{normalized_text}\"");
+
+        // Prepare words for timing estimation
+        let all_words = self.prepare_words(&expanded)?;
+        let word_groups = group_words_by_sentence(&all_words);
+
+        // Split into paragraphs, phonikud each, split IPA into sentences
+        let paragraphs = split_paragraphs(&normalized_text);
+        let mut sentence_ipas: Vec<String> = Vec::new();
+        let mut all_ipa = String::new();
+
+        for para in &paragraphs {
+            let para_ipa = self.segment_to_ipa(para)?;
+            if para_ipa.trim().is_empty() {
+                continue;
+            }
+            if !all_ipa.is_empty() && !all_ipa.ends_with(' ') {
+                all_ipa.push(' ');
+            }
+            all_ipa.push_str(&para_ipa);
+
+            for s in split_ipa_sentences(&para_ipa) {
+                if !s.trim().is_empty() {
+                    sentence_ipas.push(s);
+                }
+            }
+        }
+
+        if sentence_ipas.is_empty() {
+            log::warn!("No phonemes produced for: \"{text}\"");
+            let tts = self.tts.lock().unwrap();
+            let sr = tts.sample_rate();
+            let silence_len = (sr as f32 * 0.5) as usize;
+            let silence = vec![0.0f32; silence_len];
+            on_sentence(text, &[], &silence)?;
+            return Ok(SynthesisMetadata {
+                original_text: text.to_string(),
+                normalized_text,
+                combined_ipa: all_ipa,
+                words: Vec::new(),
+            });
+        }
+
+        let num_sentences = sentence_ipas.len();
+        let num_word_groups = word_groups.len();
+        let groups_aligned = num_sentences == num_word_groups;
+        if !groups_aligned {
+            log::warn!(
+                "Sentence/word-group mismatch: {} IPA sentences vs {} word groups; \
+                 falling back to flat word distribution",
+                num_sentences,
+                num_word_groups,
+            );
+        }
+
+        log::info!(
+            "synthesize_sentences: {} sentence(s), {} word group(s), aligned={}",
+            num_sentences,
+            num_word_groups,
+            groups_aligned,
+        );
+
         let mut tts = self.tts.lock().unwrap();
         let sr = tts.sample_rate();
-        tts.infer_stream(&prepared.combined_ipa, effective_style, steps, |chunk| {
-            total_samples += chunk.len();
-            sink(&chunk)
-        })?;
-        Ok(build_metadata(text, &prepared, total_samples, sr))
+        let mut cumulative_sec = 0.0f32;
+        let mut total_samples = 0usize;
+
+        for (i, sentence_ipa) in sentence_ipas.iter().enumerate() {
+            let is_first = i == 0;
+            let is_last = i + 1 == num_sentences;
+            log::info!(
+                "  sentence {}/{}: IPA=\"{}\"",
+                i + 1,
+                num_sentences,
+                sentence_ipa
+            );
+
+            // Buffer audio for this sentence so we know exact duration
+            let mut sentence_audio = Vec::new();
+            tts.infer_stream(
+                sentence_ipa,
+                effective_style,
+                steps,
+                is_first,
+                is_last,
+                |chunk| {
+                    sentence_audio.extend(chunk);
+                    Ok(())
+                },
+            )?;
+
+            let sentence_duration = sentence_audio.len() as f32 / sr as f32;
+
+            // Compute word timings for this sentence
+            let word_timings = if groups_aligned {
+                let indices = &word_groups[i];
+                let words: Vec<&PreparedWord> =
+                    indices.iter().map(|&idx| &all_words[idx]).collect();
+                estimate_sentence_word_timings(&words, sentence_duration, cumulative_sec)
+            } else if i == 0 {
+                // Fallback: put all words in the first sentence
+                let words: Vec<&PreparedWord> = all_words.iter().collect();
+                let total_dur: f32 = sentence_ipas.len() as f32 * sentence_duration;
+                estimate_sentence_word_timings(&words, total_dur, 0.0)
+            } else {
+                Vec::new()
+            };
+
+            total_samples += sentence_audio.len();
+            on_sentence(text, &word_timings, &sentence_audio)?;
+            cumulative_sec += sentence_duration;
+
+            // Insert inter-sentence silence (natural pause that also masks
+            // processing time for the next sentence).
+            if !is_last {
+                let pause_samples = (sr as f32 * 0.25) as usize; // 250 ms
+                let silence = vec![0.0f32; pause_samples];
+                total_samples += pause_samples;
+                on_sentence(text, &[], &silence)?;
+                cumulative_sec += pause_samples as f32 / sr as f32;
+            }
+        }
+
+        log::info!("synthesize_sentences: {} total samples", total_samples);
+
+        Ok(SynthesisMetadata {
+            original_text: text.to_string(),
+            normalized_text,
+            combined_ipa: all_ipa,
+            words: Vec::new(),
+        })
     }
 }
 
@@ -500,5 +858,19 @@ impl TtsSynthesizer for LazyLightBlueSynthesizer {
             .get_or_init()
             .map_err(|e| -> BoxErr { e.to_string().into() })?;
         synth.synthesize_stream(text, style_json, steps, use_gpu, sink)
+    }
+
+    fn synthesize_sentences(
+        &self,
+        text: &str,
+        style_json: Option<&str>,
+        steps: Option<u32>,
+        use_gpu: bool,
+        on_sentence: &mut dyn FnMut(&str, &[WordTiming], &[f32]) -> Result<(), BoxErr>,
+    ) -> Result<SynthesisMetadata, BoxErr> {
+        let synth = self
+            .get_or_init()
+            .map_err(|e| -> BoxErr { e.to_string().into() })?;
+        synth.synthesize_sentences(text, style_json, steps, use_gpu, on_sentence)
     }
 }

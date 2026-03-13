@@ -13,7 +13,7 @@ ort = { version = "=2.0.0-rc.11", default-features = false, features = ["ndarray
 ndarray = "0.17"
 
 # Hebrew diacritization (nikud)
-phonikud-rs = { path = "../phonikud-rs" }
+phonikud-rs = { git = "https://github.com/shimondoodkin/phonikud-rs.git" }
 
 # Windows COM / SAPI
 windows = { version = "0.58", features = [

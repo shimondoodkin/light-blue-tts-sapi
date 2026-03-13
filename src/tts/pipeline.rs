@@ -670,11 +670,18 @@ impl HebrewTTS {
 
     /// Stream inference: returns audio chunks via a callback.
     /// Each chunk is a `Vec<f32>` of PCM samples.
+    ///
+    /// `do_fade_in` / `do_fade_out` control whether the overall first/last
+    /// audio chunks get a fade applied.  When the caller is streaming multiple
+    /// independent IPA segments (e.g. sentences) it should set these so that
+    /// only the very first segment fades in and the very last fades out.
     pub fn infer_stream(
         &mut self,
         text: &str,
         style_json_path: Option<&str>,
         steps_override: Option<u32>,
+        do_fade_in: bool,
+        do_fade_out: bool,
         mut callback: impl FnMut(Vec<f32>) -> Result<(), BoxErr>,
     ) -> Result<(), BoxErr> {
         let style = match style_json_path {
@@ -693,11 +700,10 @@ impl HebrewTTS {
         for (i, chunk) in chunks.iter().enumerate() {
             let mut audio = self.infer_chunk(chunk, &style, effective_steps)?;
 
-            // Apply fade only to first/last overall chunks
-            if i == 0 {
+            if do_fade_in && i == 0 {
                 apply_fade_in(&mut audio, self.fade_duration, self.sample_rate);
             }
-            if i + 1 == chunks.len() {
+            if do_fade_out && i + 1 == chunks.len() {
                 apply_fade_out(&mut audio, self.fade_duration, self.sample_rate);
             }
 

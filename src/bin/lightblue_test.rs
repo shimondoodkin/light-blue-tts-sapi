@@ -93,6 +93,59 @@ fn main() {
             elapsed.as_secs_f64() / duration,
         );
     }
+
+    // Test sentence-level streaming with word events
+    eprintln!("=== Sentence streaming test ===");
+    let long_text = "שלום לכולם. היום אנחנו נדבר על נושא חשוב מאוד. \
+                     החינוך הוא הכלי החשוב ביותר שיש לנו. \
+                     כל ילד ראוי לחינוך איכותי! מה דעתכם?";
+    eprintln!("Text: \"{long_text}\"");
+    let t = Instant::now();
+    let mut sentence_count = 0usize;
+    let mut total_words = 0usize;
+    let mut total_samples = 0usize;
+    let mut first_sentence_time: Option<std::time::Duration> = None;
+
+    let metadata = synth
+        .synthesize_sentences(long_text, None, None, false, &mut |_orig, words, audio| {
+            sentence_count += 1;
+            total_words += words.len();
+            total_samples += audio.len();
+
+            if first_sentence_time.is_none() {
+                first_sentence_time = Some(t.elapsed());
+            }
+
+            let dur = audio.len() as f64 / 44100.0;
+            eprintln!(
+                "  sentence {}: {} words, {:.2}s audio",
+                sentence_count,
+                words.len(),
+                dur,
+            );
+            for w in words {
+                eprintln!(
+                    "    word {:?} @ {:.3}s-{:.3}s  span={:?}",
+                    w.text, w.start_sec, w.end_sec, w.original_span,
+                );
+            }
+            Ok(())
+        })
+        .unwrap_or_else(|e| {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        });
+
+    let elapsed = t.elapsed();
+    let total_dur = total_samples as f64 / 44100.0;
+    eprintln!();
+    eprintln!("  sentences: {sentence_count}");
+    eprintln!("  total words: {total_words}");
+    eprintln!("  total audio: {:.2}s", total_dur);
+    eprintln!("  time to first sentence: {:.2?}", first_sentence_time.unwrap_or_default());
+    eprintln!("  total elapsed: {elapsed:.2?}");
+    eprintln!("  RTF: {:.2}x", elapsed.as_secs_f64() / total_dur);
+    eprintln!("  IPA: \"{}\"", metadata.combined_ipa);
 }
 
 fn find_models_dir() -> PathBuf {

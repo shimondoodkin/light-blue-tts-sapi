@@ -77,6 +77,30 @@ pub trait TtsSynthesizer: Send + Sync {
         sink(&output.samples)?;
         Ok(output.metadata)
     }
+
+    /// Stream synthesis sentence-by-sentence with per-sentence word timing events.
+    ///
+    /// For each sentence the callback receives:
+    /// - `original_text` — the full original text (for span mapping)
+    /// - `&[WordTiming]`  — word timings with **absolute** `start_sec`/`end_sec`
+    ///    (cumulative across sentences, matching the PCM stream position)
+    /// - `&[f32]` — the PCM audio samples for this sentence
+    ///
+    /// The caller should emit word boundary events and write the audio inside
+    /// the callback.
+    fn synthesize_sentences(
+        &self,
+        text: &str,
+        style_json: Option<&str>,
+        steps: Option<u32>,
+        use_gpu: bool,
+        on_sentence: &mut dyn FnMut(&str, &[WordTiming], &[f32]) -> Result<(), BoxErr>,
+    ) -> Result<SynthesisMetadata, BoxErr> {
+        // Default: synthesize all at once, emit as a single "sentence"
+        let output = self.synthesize(text, style_json, steps, use_gpu)?;
+        on_sentence(text, &output.metadata.words, &output.samples)?;
+        Ok(output.metadata)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -408,61 +432,44 @@ impl TtsEngine_Impl {
         let use_gpu = *self.use_gpu.lock().unwrap();
         let wants_word_boundary = site_wants_word_boundary(site);
         let synth_start = std::time::Instant::now();
-        let (total_samples, metadata) = if wants_word_boundary {
-            let output = match self
-                .synthesizer
-                .synthesize(&text, style_path.as_deref(), steps, use_gpu)
-            {
-                Ok(output) => output,
-                Err(e) => {
-                    log::error!("Speak: synthesis failed: {e}");
-                    return E_FAIL;
+
+        // Use sentence-level streaming for both paths.
+        // Each sentence: emit word events (if wanted) → write PCM.
+        let mut total_samples = 0usize;
+        let mut aborted = false;
+        let metadata = match self.synthesizer.synthesize_sentences(
+            &text,
+            style_path.as_deref(),
+            steps,
+            use_gpu,
+            &mut |original_text, words, samples| {
+                // Emit word boundary events for this sentence
+                if wants_word_boundary && !words.is_empty() {
+                    emit_word_events(site, original_text, words);
                 }
-            };
-            emit_word_boundary_events(site, &output.metadata);
-            let mut aborted = false;
-            if let Err(hr) = write_samples_to_site(site, &output.samples, &mut aborted) {
-                log::error!("Speak: site.Write failed: {hr:?}");
-                return hr;
-            }
-            if aborted {
-                log::debug!("Speak aborted by caller");
-                return S_OK;
-            }
-            (output.samples.len(), output.metadata)
-        } else {
-            let mut total_samples = 0usize;
-            let mut aborted = false;
-            let metadata = match self.synthesizer.synthesize_stream(
-                &text,
-                style_path.as_deref(),
-                steps,
-                use_gpu,
-                &mut |samples_f32| {
-                    total_samples += samples_f32.len();
-                    write_samples_to_site(site, samples_f32, &mut aborted)
-                        .map_err(|hr| format!("site.Write failed: {hr:?}").into())
-                },
-            ) {
-                Ok(metadata) => metadata,
-                Err(e) => {
-                    if aborted {
-                        log::debug!("Speak aborted by caller");
-                        return S_OK;
-                    }
-                    log::error!("Speak: synthesis failed: {e}");
-                    return E_FAIL;
+
+                total_samples += samples.len();
+                write_samples_to_site(site, samples, &mut aborted)
+                    .map_err(|hr| format!("site.Write failed: {hr:?}").into())
+            },
+        ) {
+            Ok(metadata) => metadata,
+            Err(e) => {
+                if aborted {
+                    log::debug!("Speak aborted by caller");
+                    return S_OK;
                 }
-            };
-            (total_samples, metadata)
+                log::error!("Speak: synthesis failed: {e}");
+                return E_FAIL;
+            }
         };
+
         let synth_elapsed = synth_start.elapsed();
         log::info!("Speak: synthesis took {synth_elapsed:?} ({} samples)", total_samples);
         log::info!(
-            "Speak: normalized_len={} ipa_len={} words={}",
+            "Speak: normalized_len={} ipa_len={}",
             metadata.normalized_text.chars().count(),
             metadata.combined_ipa.chars().count(),
-            metadata.words.len()
         );
 
         log::info!("Speak: total elapsed {:?}", speak_start.elapsed());
@@ -572,18 +579,22 @@ unsafe fn write_samples_to_site(
     Ok(())
 }
 
-unsafe fn emit_word_boundary_events(site: &ISpTTSEngineSite, metadata: &SynthesisMetadata) {
-    if !site_wants_word_boundary(site) {
-        return;
-    }
-
-    let mut events = Vec::with_capacity(metadata.words.len());
-    for word in &metadata.words {
+/// Emit word boundary SAPI events for a batch of words (typically one sentence).
+///
+/// Word timings must have absolute `start_sec` values that correspond to
+/// the current PCM stream position.
+unsafe fn emit_word_events(
+    site: &ISpTTSEngineSite,
+    original_text: &str,
+    words: &[WordTiming],
+) {
+    let mut events = Vec::with_capacity(words.len());
+    for word in words {
         let Some(original_span) = word.original_span else {
             continue;
         };
         let (char_pos, word_len, adjusted) = utf16_span_metrics(
-            &metadata.original_text,
+            original_text,
             original_span.start,
             original_span.end,
         );
@@ -591,7 +602,7 @@ unsafe fn emit_word_boundary_events(site: &ISpTTSEngineSite, metadata: &Synthesi
             log::debug!(
                 "Speak: adjusted invalid span {:?} for original_text len={}",
                 original_span,
-                metadata.original_text.len()
+                original_text.len()
             );
         }
         if word_len == 0 {
@@ -611,10 +622,8 @@ unsafe fn emit_word_boundary_events(site: &ISpTTSEngineSite, metadata: &Synthesi
         events.push(SPEVENT {
             eEventId: SPEI_WORD_BOUNDARY,
             elParamType: SPET_LPARAM_IS_UNDEFINED,
-            ulStreamNum: 0, // SAPI fills in the correct stream number
+            ulStreamNum: 0,
             ullAudioStreamOffset: offset_bytes,
-            // SpVoice automation surfaces OnWord(CharacterPosition, Length)
-            // from lParam and wParam respectively for SPEI_WORD_BOUNDARY.
             wParam: word_len,
             lParam: char_pos as isize,
         });
