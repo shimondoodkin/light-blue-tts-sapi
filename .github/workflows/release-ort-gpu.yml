@@ -1,4 +1,4 @@
-name: Release ORT GPU
+name: Release ORT CUDA
 
 on:
   workflow_dispatch:
