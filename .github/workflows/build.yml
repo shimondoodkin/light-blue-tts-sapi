@@ -68,6 +68,7 @@ jobs:
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
           files: target/installer/LightBlue-TTS-SAPI-Setup.exe
+          make_latest: true
           generate_release_notes: true
           body: |
             ## LightBlue Hebrew TTS — Windows SAPI 5 Voice Engine
@@ -78,37 +79,41 @@ jobs:
             |------|-------------|
             | **LightBlue-TTS-SAPI-Setup.exe** | App installer (DLL, CLI tools, DirectML runtime) |
             | **LightBlue-TTS-SAPI-Models.exe** | ONNX models (required, install separately) |
-            | **LightBlue-TTS-SAPI-ORT-GPU.exe** | ONNX Runtime GPU — for CUDA/TensorRT (optional) |
+            | **LightBlue-TTS-SAPI-ORT-GPU.exe** | ONNX Runtime GPU — CUDA/TensorRT acceleration (optional) |
+            | **LightBlue-TTS-SAPI-ORT-OpenVINO.exe** | ONNX Runtime OpenVINO — Intel CPU/GPU/NPU acceleration (optional) |
 
-            > **Models and ORT GPU installers** are uploaded separately via manual workflows.
+            > **Models and runtime installers** are uploaded separately via manual workflows.
             > If they are not yet attached to this release, check back shortly or see [all releases](https://github.com/shimondoodkin/light-blue-tts-sapi/releases).
 
             ---
 
-            ### CPU-Only Install (simplest)
+            ### Install — Step 1: App + Runtime
 
-            1. Download and run **LightBlue-TTS-SAPI-Setup.exe**
-            2. Download and run **LightBlue-TTS-SAPI-Models.exe**
-            3. Done! Select a "LightBlueTTS" voice in Windows speech settings.
+            Download and run **LightBlue-TTS-SAPI-Setup.exe** — installs the TTS engine DLL, CLI tools, and the default DirectML runtime (works on all GPUs including AMD, Intel, NVIDIA via Windows ML).
 
-            ### GPU Install (CUDA / TensorRT)
+            ### Install — Step 2: Models
 
-            For faster synthesis on NVIDIA GPUs:
+            Download and run **LightBlue-TTS-SAPI-Models.exe** — installs the ONNX neural network models into the app folder. **Required.**
 
-            1. Install the latest **CUDA 12.x** from [CUDA Toolkit Archive](https://developer.nvidia.com/cuda-toolkit-archive)
-            2. Install the latest **cuDNN 9.x** from [cuDNN Archive](https://developer.nvidia.com/cudnn-archive)
-            3. Download and run **LightBlue-TTS-SAPI-Setup.exe** (install the app first)
-            4. Download and run **LightBlue-TTS-SAPI-Models.exe** (installs into the app folder)
-            5. Download and run **LightBlue-TTS-SAPI-ORT-GPU.exe** (overwrites CPU onnxruntime.dll with GPU version — must be installed after the app setup)
-            6. Select a "GPU" voice variant in Windows speech settings.
+            ### Install — Step 3: Pick an Accelerator (optional)
+
+            The default DirectML/WinML runtime works out of the box. For better performance you can replace it with a vendor-specific runtime:
+
+            | Runtime | Best for | Prerequisites |
+            |---------|----------|---------------|
+            | **DirectML** (default) | Any GPU — AMD, Intel, NVIDIA | None (included) |
+            | **OpenVINO** | Intel CPUs, Intel GPUs, Intel NPUs | Run **LightBlue-TTS-SAPI-ORT-OpenVINO.exe** (after app setup) |
+            | **CUDA / TensorRT** | NVIDIA GPUs (fastest) | Install [CUDA 12.x](https://developer.nvidia.com/cuda-toolkit-archive) + [cuDNN 9.x](https://developer.nvidia.com/cudnn-archive), then run **LightBlue-TTS-SAPI-ORT-GPU.exe** (after app setup) |
+
+            After installing a runtime, select the matching voice variant (e.g. "GPU") in Windows speech settings.
 
             ---
 
             ### Voice Variants
 
             Each voice (male "Shaul" / female "Rotem") has multiple quality presets:
-            - **4 steps** — fastest, lower quality (CPU only)
-            - **8 steps** — good balance
+            - **4 steps** — fastest, lower quality
+            - **8 steps** — good balance (default)
             - **32 steps** — high quality
             - **64 steps** — best quality, slowest
         env:
