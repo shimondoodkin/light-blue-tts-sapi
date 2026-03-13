@@ -79,7 +79,7 @@ jobs:
             |------|-------------|
             | **LightBlue-TTS-SAPI-Setup.exe** | App installer (DLL, CLI tools, DirectML runtime) |
             | **LightBlue-TTS-SAPI-Models.exe** | ONNX models (required, install separately) |
-            | **LightBlue-TTS-SAPI-ORT-GPU.exe** | ONNX Runtime GPU — CUDA/TensorRT acceleration (optional) |
+            | **LightBlue-TTS-SAPI-ORT-CUDA.exe** | ONNX Runtime CUDA — CUDA/TensorRT acceleration (optional) |
             | **LightBlue-TTS-SAPI-ORT-OpenVINO.exe** | ONNX Runtime OpenVINO — Intel CPU/GPU/NPU acceleration (optional) |
 
             > **Models and runtime installers** are uploaded separately via manual workflows.
@@ -103,7 +103,7 @@ jobs:
             |---------|----------|---------------|
             | **DirectML** (default) | Any GPU — AMD, Intel, NVIDIA | None (included) |
             | **OpenVINO** | Intel CPUs, Intel GPUs, Intel NPUs | Run **LightBlue-TTS-SAPI-ORT-OpenVINO.exe** (after app setup) |
-            | **CUDA / TensorRT** | NVIDIA GPUs (fastest) | Install [CUDA 12.x](https://developer.nvidia.com/cuda-toolkit-archive) + [cuDNN 9.x](https://developer.nvidia.com/cudnn-archive), then run **LightBlue-TTS-SAPI-ORT-GPU.exe** (after app setup) |
+            | **CUDA / TensorRT** | NVIDIA GPUs (fastest) | Install [CUDA 12.x](https://developer.nvidia.com/cuda-toolkit-archive) + [cuDNN 9.x](https://developer.nvidia.com/cudnn-archive), then run **LightBlue-TTS-SAPI-ORT-CUDA.exe** (after app setup) |
 
             After installing a runtime, select the matching voice variant (e.g. "GPU") in Windows speech settings.
 

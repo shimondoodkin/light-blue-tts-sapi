@@ -1,12 +1,12 @@
-; LightBlue Hebrew TTS SAPI - ONNX Runtime GPU Installer
+; LightBlue Hebrew TTS SAPI - ONNX Runtime CUDA Installer
 ; Extracts CUDA/TensorRT-enabled ORT DLLs to the app folder
 ; (overwrites the CPU/DirectML onnxruntime.dll from the app installer)
 
 !include "MUI2.nsh"
 
 ; --- General ---
-Name "LightBlue Hebrew TTS SAPI - ONNX Runtime GPU"
-OutFile "..\target\installer\LightBlue-TTS-SAPI-ORT-GPU.exe"
+Name "LightBlue Hebrew TTS SAPI - ONNX Runtime CUDA"
+OutFile "..\target\installer\LightBlue-TTS-SAPI-ORT-CUDA.exe"
 InstallDir "$PROGRAMFILES64\LightBlue TTS SAPI"
 RequestExecutionLevel admin
 Unicode true
@@ -28,7 +28,7 @@ Unicode true
 Section "Install"
     SetOutPath "$INSTDIR"
 
-    ; ONNX Runtime GPU DLLs (overwrites CPU version)
+    ; ONNX Runtime CUDA DLLs (overwrites CPU version)
     File "onnxruntime.dll"
     File "onnxruntime_providers_shared.dll"
     File "onnxruntime_providers_cuda.dll"

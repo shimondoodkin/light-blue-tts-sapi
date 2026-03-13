@@ -43,23 +43,23 @@ jobs:
         run: mkdir -p target/installer
         shell: bash
 
-      - name: Build NSIS ORT GPU installer
+      - name: Build NSIS ORT CUDA installer
         shell: cmd
         working-directory: installer
         run: |
-          "C:\Program Files (x86)\NSIS\makensis.exe" setup-ort-gpu.nsi
+          "C:\Program Files (x86)\NSIS\makensis.exe" setup-ort-cuda.nsi
 
-      - name: Upload ORT GPU installer artifact
+      - name: Upload ORT CUDA installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LightBlue-TTS-SAPI-ORT-GPU
-          path: target/installer/LightBlue-TTS-SAPI-ORT-GPU.exe
+          name: LightBlue-TTS-SAPI-ORT-CUDA
+          path: target/installer/LightBlue-TTS-SAPI-ORT-CUDA.exe
 
       - name: Upload to GitHub Release
         if: inputs.tag != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
-          files: target/installer/LightBlue-TTS-SAPI-ORT-GPU.exe
+          files: target/installer/LightBlue-TTS-SAPI-ORT-CUDA.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
