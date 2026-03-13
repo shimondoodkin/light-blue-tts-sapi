@@ -32,7 +32,7 @@ del _warmup_voice, _voices
 
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-    QTextEdit, QPushButton, QLabel, QComboBox, QSizePolicy,
+    QTextEdit, QTextBrowser, QPushButton, QLabel, QComboBox,
 )
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QFont
@@ -96,16 +96,12 @@ class TTSHighlightApp(QWidget):
 
         # Rendered text with highlighting
         layout.addWidget(QLabel("Spoken text:"))
-        self.display_label = QLabel()
-        self.display_label.setWordWrap(True)
-        self.display_label.setAlignment(Qt.AlignRight | Qt.AlignTop)
-        self.display_label.setLayoutDirection(Qt.RightToLeft)
+        self.display_label = QTextBrowser()
+        self.display_label.setReadOnly(True)
+        self.display_label.setOpenLinks(False)
         self.display_label.setFont(QFont("Segoe UI", 18))
-        self.display_label.setTextFormat(Qt.RichText)
-        sp = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.display_label.setSizePolicy(sp)
         self.display_label.setStyleSheet(
-            "QLabel { background: white; border: 1px solid #ccc; "
+            "QTextBrowser { background: white; border: 1px solid #ccc; "
             "padding: 16px; border-radius: 6px; }"
         )
         self.display_label.setMinimumHeight(120)
@@ -274,40 +270,29 @@ class TTSHighlightApp(QWidget):
         try:
             text = self.current_text
             if not text:
-                self.display_label.setText("")
+                self.display_label.setHtml("")
                 return
 
             if highlight_pos < 0 or highlight_len <= 0:
-                self.display_label.setText(
-                    f'<p style="direction:rtl; text-align:right;">'
-                    f'{html.escape(text)}</p>'
+                body = html.escape(text)
+            elif highlight_pos >= len(text):
+                body = html.escape(text)
+            else:
+                end = min(highlight_pos + highlight_len, len(text))
+                before = text[:highlight_pos]
+                word = text[highlight_pos:end]
+                after = text[end:]
+                body = (
+                    f'{html.escape(before)}'
+                    f'<span style="background-color: #4FC3F7; color: black; '
+                    f'border-radius: 3px; padding: 1px 3px;">'
+                    f'{html.escape(word)}</span>'
+                    f'{html.escape(after)}'
                 )
-                return
 
-            # Clamp to valid range
-            text_len = len(text)
-            if highlight_pos >= text_len:
-                self.display_label.setText(
-                    f'<p style="direction:rtl; text-align:right;">'
-                    f'{html.escape(text)}</p>'
-                )
-                return
-            end = min(highlight_pos + highlight_len, text_len)
-
-            before = text[:highlight_pos]
-            word = text[highlight_pos:end]
-            after = text[end:]
-
-            highlighted = (
-                f'<p style="direction:rtl; text-align:right;">'
-                f'{html.escape(before)}'
-                f'<span style="background-color: #4FC3F7; color: black; '
-                f'border-radius: 3px; padding: 1px 3px;">'
-                f'{html.escape(word)}</span>'
-                f'{html.escape(after)}'
-                f'</p>'
+            self.display_label.setHtml(
+                f'<p dir="rtl" align="right">{body}</p>'
             )
-            self.display_label.setText(highlighted)
         except Exception as e:
             print(f"Render error: {e}")
             traceback.print_exc()
