@@ -418,14 +418,14 @@ impl TtsEngine_Impl {
             }
         };
 
-        let text = match collect_text(p_text_frag_list) {
+        let (text, text_src_offset) = match collect_text(p_text_frag_list) {
             Some(t) => t,
             None => {
                 log::debug!("Speak: empty text fragment list");
                 return S_OK;
             }
         };
-        log::info!("TtsEngine::Speak text=\"{}\"", text);
+        log::info!("TtsEngine::Speak text=\"{}\" src_offset={}", text, text_src_offset);
 
         let style_path = self.style_json_path.lock().unwrap().clone();
         let steps = *self.steps.lock().unwrap();
@@ -445,7 +445,7 @@ impl TtsEngine_Impl {
             &mut |original_text, words, samples| {
                 // Emit word boundary events for this sentence
                 if wants_word_boundary && !words.is_empty() {
-                    emit_word_events(site, original_text, words);
+                    emit_word_events(site, original_text, words, text_src_offset);
                 }
 
                 total_samples += samples.len();
@@ -583,10 +583,15 @@ unsafe fn write_samples_to_site(
 ///
 /// Word timings must have absolute `start_sec` values that correspond to
 /// the current PCM stream position.
+///
+/// `text_src_offset` is the `ulTextSrcOffset` from the first SAPI text fragment —
+/// it must be added to all character positions so that hosts (HTML readers, book
+/// apps, etc.) can map events back to the correct position in the source document.
 unsafe fn emit_word_events(
     site: &ISpTTSEngineSite,
     original_text: &str,
     words: &[WordTiming],
+    text_src_offset: u32,
 ) {
     let mut events = Vec::with_capacity(words.len());
     for word in words {
@@ -609,12 +614,17 @@ unsafe fn emit_word_events(
             continue;
         }
 
+        // Add ulTextSrcOffset so hosts can map back to source document positions
+        let absolute_char_pos = char_pos + text_src_offset as usize;
+
         let offset_bytes = ((word.start_sec.max(0.0) * AVG_BYTES_PER_SEC as f32).round() as u64)
             .min(u64::MAX);
         log::info!(
-            "Speak: word event text={:?} stream_offset={} char_pos={} len={} original_span={:?}",
+            "Speak: word event text={:?} stream_offset={} char_pos={} (src_offset={} + {}) len={} original_span={:?}",
             word.text,
             offset_bytes,
+            absolute_char_pos,
+            text_src_offset,
             char_pos,
             word_len,
             original_span,
@@ -625,7 +635,7 @@ unsafe fn emit_word_events(
             ulStreamNum: 0,
             ullAudioStreamOffset: offset_bytes,
             wParam: word_len,
-            lParam: char_pos as isize,
+            lParam: absolute_char_pos as isize,
         });
     }
 
@@ -675,9 +685,16 @@ fn clamp_to_char_boundary(text: &str, idx: usize) -> usize {
 // Helper: walk SPVTEXTFRAG linked list
 // ---------------------------------------------------------------------------
 
-unsafe fn collect_text(mut frag: *const SPVTEXTFRAG) -> Option<String> {
+/// Collect text from a SAPI fragment list.
+///
+/// Returns `(text, ulTextSrcOffset)` where `ulTextSrcOffset` is the source
+/// document offset of the first fragment. Hosts like book readers and HTML
+/// engines use this so word boundary events point to the right place in
+/// the original document.
+unsafe fn collect_text(mut frag: *const SPVTEXTFRAG) -> Option<(String, u32)> {
     let mut buf = String::new();
     let mut count = 0usize;
+    let mut first_src_offset: Option<u32> = None;
     while !frag.is_null() {
         if count > 256 {
             log::warn!("collect_text: too many fragments, aborting traversal");
@@ -688,6 +705,10 @@ unsafe fn collect_text(mut frag: *const SPVTEXTFRAG) -> Option<String> {
         if !f.pTextStart.is_null() && f.ulTextLen > 0 {
             let slice = std::slice::from_raw_parts(f.pTextStart, f.ulTextLen as usize);
             if let Ok(s) = String::from_utf16(slice) {
+                if first_src_offset.is_none() {
+                    first_src_offset = Some(f.ulTextSrcOffset);
+                    log::debug!("collect_text: first ulTextSrcOffset={}", f.ulTextSrcOffset);
+                }
                 if !buf.is_empty() {
                     buf.push(' ');
                 }
@@ -700,7 +721,7 @@ unsafe fn collect_text(mut frag: *const SPVTEXTFRAG) -> Option<String> {
     if buf.is_empty() {
         None
     } else {
-        Some(buf)
+        Some((buf, first_src_offset.unwrap_or(0)))
     }
 }
 
